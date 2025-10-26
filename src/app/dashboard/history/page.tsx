@@ -1,3 +1,6 @@
+'use client';
+
+import { useQueryHistory } from '@/hooks/use-query-history';
 import {
   Table,
   TableBody,
@@ -6,91 +9,79 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-
-const queryHistory = [
-  {
-    id: 'q1',
-    naturalQuery: 'Muéstrame todos los clientes de Nueva York.',
-    sqlQuery: "SELECT * FROM customers WHERE city = 'New York';",
-    timestamp: new Date('2023-10-26T10:00:00Z'),
-    status: 'Éxito',
-  },
-  {
-    id: 'q2',
-    naturalQuery: '¿Cuáles son las ventas totales por categoría de producto?',
-    sqlQuery:
-      'SELECT category, SUM(total_amount) as total_sales FROM sales s JOIN products p ON s.product_id = p.id GROUP BY p.category;',
-    timestamp: new Date('2023-10-26T10:05:00Z'),
-    status: 'Éxito',
-  },
-  {
-    id: 'q3',
-    naturalQuery: 'Encuentra las 5 ventas más recientes.',
-    sqlQuery: 'SELECT * FROM sales ORDER BY sale_date DESC LIMIT 5;',
-    timestamp: new Date('2023-10-26T10:10:00Z'),
-    status: 'Éxito',
-  },
-  {
-    id: 'q4',
-    naturalQuery: 'Lista los usuarios que se registraron en los últimos 30 días.',
-    sqlQuery:
-      "SELECT * FROM customers WHERE registration_date >= DATE('now', '-30 days');",
-    timestamp: new Date('2023-10-26T10:15:00Z'),
-    status: 'Fallido',
-  },
-];
+import { Button } from '@/components/ui/button';
+import { Trash2 } from 'lucide-react';
 
 export default function HistoryPage() {
+  const { queryHistory, clearHistory } = useQueryHistory();
+
   return (
     <div className="container mx-auto p-4 sm:p-6 lg:p-8">
       <div className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Historial de Consultas</h1>
         <p className="text-muted-foreground">
-          Revise sus consultas ejecutadas anteriormente.
+          Revise las consultas que ha generado y ejecutado.
         </p>
       </div>
       <Card>
-        <CardHeader>
-          <CardTitle>Historial</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Historial Reciente</CardTitle>
+            <CardDescription>
+              Aquí se muestran sus últimas 10 consultas. El historial se borra al cerrar la pestaña.
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={clearHistory} disabled={queryHistory.length === 0}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            Limpiar Historial
+          </Button>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Consulta</TableHead>
-                <TableHead>SQL Generado</TableHead>
+                <TableHead className="w-[30%]">Consulta</TableHead>
+                <TableHead className="w-[40%]">SQL Generado</TableHead>
                 <TableHead>Fecha</TableHead>
                 <TableHead>Estado</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {queryHistory.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="max-w-xs truncate font-medium">
-                    {item.naturalQuery}
-                  </TableCell>
-                  <TableCell className="font-code text-xs max-w-xs truncate text-muted-foreground">
-                    {item.sqlQuery}
-                  </TableCell>
-                  <TableCell>
-                    {format(item.timestamp, 'd MMM, yyyy, h:mm a', { locale: es })}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        item.status === 'Éxito' ? 'default' : 'destructive'
-                      }
-                      className={item.status === 'Éxito' ? 'bg-green-500/20 text-green-400 border-green-500/30' : ''}
-                    >
-                      {item.status}
-                    </Badge>
+              {queryHistory.length > 0 ? (
+                queryHistory.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell className="max-w-xs truncate font-medium">
+                      {item.naturalQuery}
+                    </TableCell>
+                    <TableCell className="font-code text-xs max-w-sm truncate text-muted-foreground">
+                      {item.sqlQuery}
+                    </TableCell>
+                    <TableCell>
+                      {format(item.timestamp, 'd MMM, yyyy, h:mm a', { locale: es })}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          item.status === 'Éxito' ? 'default' : 'destructive'
+                        }
+                        className={item.status === 'Éxito' ? 'bg-green-500/20 text-green-700 border-green-500/30 dark:text-green-400' : ''}
+                      >
+                        {item.status}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-24 text-center">
+                    No hay consultas en el historial.
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>

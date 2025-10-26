@@ -1,7 +1,6 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -47,6 +46,7 @@ import {
   OracleIcon,
 } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 
 const iconMap = {
   PostgreSQL: PostgreSqlIcon,
@@ -55,31 +55,41 @@ const iconMap = {
   Oracle: OracleIcon,
 };
 
-const initialDataSources = [
+type DataSourceType = keyof typeof iconMap;
+
+interface DataSource {
+  name: string;
+  type: DataSourceType;
+  description: string;
+  icon: (props: React.SVGProps<SVGSVGElement>) => JSX.Element;
+  status: 'Conectado' | 'Desconectado';
+}
+
+const initialDataSources: DataSource[] = [
   {
-    name: 'PostgreSQL',
-    type: 'PostgreSQL' as keyof typeof iconMap,
+    name: 'PostgreSQL de Producción',
+    type: 'PostgreSQL',
     description: 'Base de datos de producción con datos de usuarios y ventas.',
     icon: PostgreSqlIcon,
     status: 'Conectado',
   },
   {
-    name: 'MongoDB',
-    type: 'MongoDB' as keyof typeof iconMap,
+    name: 'MongoDB de Logs',
+    type: 'MongoDB',
     description: 'Almacén de documentos para registros y eventos de la aplicación.',
     icon: MongoDbIcon,
     status: 'Conectado',
   },
   {
-    name: 'MariaDB',
-    type: 'MariaDB' as keyof typeof iconMap,
+    name: 'MariaDB Heredada',
+    type: 'MariaDB',
     description: 'Base de datos heredada para registros de archivo.',
     icon: MariaDbIcon,
     status: 'Desconectado',
   },
   {
-    name: 'Oracle',
-    type: 'Oracle' as keyof typeof iconMap,
+    name: 'Oracle Financiero',
+    type: 'Oracle',
     description: 'Almacén de datos financieros para informes.',
     icon: OracleIcon,
     status: 'Conectado',
@@ -87,9 +97,9 @@ const initialDataSources = [
 ];
 
 const formSchema = z.object({
-  name: z.string().min(1, 'El nombre es obligatorio.'),
-  type: z.enum(['PostgreSQL', 'MongoDB', 'MariaDB', 'Oracle']),
-  description: z.string(),
+  name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
+  type: z.enum(['PostgreSQL', 'MongoDB', 'MariaDB', 'Oracle'], { required_error: 'Debe seleccionar un tipo de base de datos.' }),
+  description: z.string().optional(),
   host: z.string().min(1, 'El host es obligatorio.'),
   port: z.coerce.number().positive('El puerto debe ser un número positivo.'),
   username: z.string().min(1, 'El usuario es obligatorio.'),
@@ -98,14 +108,14 @@ const formSchema = z.object({
 });
 
 export default function DataSourcesPage() {
-  const [dataSources, setDataSources] = useState(initialDataSources);
+  const [dataSources, setDataSources] = useState<DataSource[]>(initialDataSources);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
-      type: 'PostgreSQL',
       description: '',
       host: '',
       port: undefined,
@@ -115,14 +125,32 @@ export default function DataSourcesPage() {
     },
   });
 
+  const dbType = form.watch('type');
+  const defaultPort = useMemo(() => {
+    switch (dbType) {
+        case 'PostgreSQL': return 5432;
+        case 'MongoDB': return 27017;
+        case 'MariaDB': return 3306;
+        case 'Oracle': return 1521;
+        default: return undefined;
+    }
+  }, [dbType]);
+
   function onSubmit(values: z.infer<typeof formSchema>) {
-    const newDataSource = {
-      ...values,
+    // In a real application, you would test the connection here.
+    // We will simulate a successful connection.
+    const newDataSource: DataSource = {
+      name: values.name,
+      type: values.type as DataSourceType,
       description: values.description || 'Sin descripción.',
-      icon: iconMap[values.type as keyof typeof iconMap],
+      icon: iconMap[values.type as DataSourceType],
       status: 'Conectado',
     };
-    setDataSources([...dataSources, newDataSource]);
+    setDataSources(prev => [...prev, newDataSource]);
+    toast({
+      title: "Conexión Exitosa",
+      description: `La fuente de datos '${values.name}' ha sido añadida.`,
+    });
     form.reset();
     setIsDialogOpen(false);
   }
@@ -171,17 +199,20 @@ export default function DataSourcesPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Tipo de Base de Datos</FormLabel>
-                       <Select onValueChange={field.onChange} defaultValue={field.value}>
+                       <Select onValueChange={(value) => {
+                         field.onChange(value);
+                         const port = value === 'PostgreSQL' ? 5432 : value === 'MongoDB' ? 27017 : value === 'MariaDB' ? 3306 : 1521;
+                         form.setValue('port', port);
+                       }} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Seleccione un tipo" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="PostgreSQL">PostgreSQL</SelectItem>
-                          <SelectItem value="MongoDB">MongoDB</SelectItem>
-                          <SelectItem value="MariaDB">MariaDB</SelectItem>
-                          <SelectItem value="Oracle">Oracle</SelectItem>
+                           {Object.keys(iconMap).map(type => (
+                             <SelectItem key={type} value={type}>{type}</SelectItem>
+                           ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -209,7 +240,7 @@ export default function DataSourcesPage() {
                       <FormItem>
                         <FormLabel>Puerto</FormLabel>
                         <FormControl>
-                          <Input type="number" placeholder="5432" {...field} />
+                          <Input type="number" placeholder={defaultPort?.toString() || "5432"} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -281,28 +312,28 @@ export default function DataSourcesPage() {
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {dataSources.map((source, index) => (
-          <Card key={`${source.name}-${index}`}>
+          <Card key={`${source.name}-${index}`} className="flex flex-col">
             <CardHeader className="flex-row items-start gap-4 space-y-0">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary">
                 <source.icon className="h-6 w-6 text-secondary-foreground" />
               </div>
               <div className="flex-1">
-                <CardTitle>{source.name}</CardTitle>
+                <CardTitle className="line-clamp-1">{source.name}</CardTitle>
                 <Badge
                   variant={
                     source.status === 'Conectado' ? 'default' : 'destructive'
                   }
                   className={
                     source.status === 'Conectado'
-                      ? 'bg-green-500/20 text-green-400 border-green-500/30'
-                      : 'bg-red-500/20 text-red-400 border-red-500/30'
+                      ? 'bg-green-500/20 text-green-700 border-green-500/30 dark:text-green-400'
+                      : 'bg-red-500/20 text-red-700 border-red-500/30 dark:text-red-400'
                   }
                 >
                   {source.status}
                 </Badge>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-grow">
               <p className="text-sm text-muted-foreground line-clamp-2">
                 {source.description}
               </p>

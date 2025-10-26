@@ -1,3 +1,5 @@
+'use client';
+
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -8,58 +10,52 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
-export default function SettingsPage() {
+const userAvatar = PlaceHolderImages.find((img) => img.id === 'user-avatar');
+
+
+export default function SettingsProfilePage() {
+    const { toast } = useToast();
+    
+    const handleSaveChanges = () => {
+        toast({
+            title: "Cambios guardados",
+            description: "Tu perfil ha sido actualizado correctamente.",
+        });
+    }
+
   return (
-    <div className="container mx-auto p-4 sm:p-6 lg:p-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">Configuración</h1>
-        <p className="text-muted-foreground">
-          Gestione la configuración de su cuenta y sus preferencias.
-        </p>
-      </div>
+    <div className="p-4 sm:p-6 lg:p-8">
+      <Card>
+        <CardHeader>
+          <CardTitle>Perfil</CardTitle>
+          <CardDescription>
+            Realice cambios en su información pública aquí. Haga clic en guardar cuando haya terminado.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+            <div className="flex items-center space-x-4">
+                <Avatar className="h-20 w-20">
+                    {userAvatar && <AvatarImage src={userAvatar.imageUrl} alt="User Avatar" />}
+                    <AvatarFallback>AV</AvatarFallback>
+                </Avatar>
+                <Button variant="outline">Cambiar foto</Button>
+            </div>
 
-      <Tabs defaultValue="profile">
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
-          <TabsTrigger value="profile">Perfil</TabsTrigger>
-          <TabsTrigger value="appearance">Apariencia</TabsTrigger>
-        </TabsList>
-        <TabsContent value="profile">
-          <Card>
-            <CardHeader>
-              <CardTitle>Perfil</CardTitle>
-              <CardDescription>
-                Realice cambios en su información pública aquí.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nombre</Label>
-                <Input id="name" defaultValue="Analista" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" defaultValue="analista@datawise.ai" />
-              </div>
-              <Button>Guardar cambios</Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="appearance">
-          <Card>
-            <CardHeader>
-              <CardTitle>Apariencia</CardTitle>
-              <CardDescription>
-                Personaliza la apariencia de la aplicación.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className='text-sm text-muted-foreground'>La configuración de la apariencia estará disponible aquí.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          <div className="space-y-2">
+            <Label htmlFor="name">Nombre</Label>
+            <Input id="name" defaultValue="Analista" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" type="email" defaultValue="analista@datawise.ai" readOnly />
+          </div>
+          <Button onClick={handleSaveChanges}>Guardar cambios</Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

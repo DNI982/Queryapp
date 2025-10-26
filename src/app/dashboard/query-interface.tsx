@@ -39,6 +39,7 @@ import { CodeBlock } from '@/components/code-block';
 import { Download, Loader2, Sparkles, Table as TableIcon } from 'lucide-react';
 import { generateSQL } from './actions';
 import { useToast } from '@/hooks/use-toast';
+import { useQueryHistory } from '@/hooks/use-query-history';
 
 const formSchema = z.object({
   naturalLanguageQuery: z.string().min(10, {
@@ -57,7 +58,8 @@ CREATE TABLE customers (
   first_name VARCHAR(50),
   last_name VARCHAR(50),
   email VARCHAR(100),
-  registration_date DATE
+  registration_date DATE,
+  city VARCHAR(50)
 );
 
 CREATE TABLE products (
@@ -94,14 +96,14 @@ CREATE TABLE sales (
     }
 };
 
+const mockQueryResultForSales = [
+    { "id": 1, "first_name": "Juan", "last_name": "Perez", "city": "Nueva York" },
+    { "id": 2, "first_name": "Maria", "last_name": "Gonzalez", "city": "Nueva York" },
+];
 
-const mockData = [
-    { id: 1, product: 'Laptop Pro', sales: 150, month: 'Enero' },
-    { id: 2, product: 'Ratón Inalámbrico', sales: 450, month: 'Enero' },
-    { id: 3, product: 'Laptop Pro', sales: 200, month: 'Febrero' },
-    { id: 4, product: 'Webcam HD', sales: 300, month: 'Febrero' },
-    { id: 5, product: 'Laptop Pro', sales: 180, month: 'Marzo' },
-    { id: 6, product: 'Ratón Inalámbrico', sales: 500, month: 'Marzo' },
+const mockQueryResultForProducts = [
+    { "category": "Electrónicos", "total_sales": 12500.50 },
+    { "category": "Libros", "total_sales": 4200.00 },
 ];
 
 export default function QueryInterface() {
@@ -110,6 +112,7 @@ export default function QueryInterface() {
   const [isLoadingSql, setIsLoadingSql] = useState(false);
   const [isLoadingResult, setIsLoadingResult] = useState(false);
   const { toast } = useToast();
+  const { addQueryToHistory } = useQueryHistory();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -139,17 +142,46 @@ export default function QueryInterface() {
         title: 'Error al generar SQL',
         description: result.error,
       });
+      addQueryToHistory({
+        naturalQuery: values.naturalLanguageQuery,
+        sqlQuery: 'Error en la generación de SQL.',
+        status: 'Fallido'
+      });
     } else {
       setGeneratedSql(result.sqlQuery!);
+      toast({
+        title: 'SQL Generado',
+        description: 'La consulta SQL ha sido generada con éxito.',
+      });
     }
     setIsLoadingSql(false);
   }
 
   function onRunQuery() {
     setIsLoadingResult(true);
+    // Simulating a real API call
     setTimeout(() => {
-      setQueryResult(mockData);
+      // In a real application, you would execute the `generatedSql` query
+      // against the selected database and get the results.
+      // Here, we'll return mock data based on the query for demonstration.
+      let resultData;
+      if (form.getValues('naturalLanguageQuery').toLowerCase().includes('cliente')) {
+        resultData = mockQueryResultForSales;
+      } else {
+        resultData = mockQueryResultForProducts;
+      }
+      
+      setQueryResult(resultData);
       setIsLoadingResult(false);
+      toast({
+        title: 'Consulta Ejecutada',
+        description: `Se han obtenido ${resultData.length} resultados.`,
+      });
+      addQueryToHistory({
+        naturalQuery: form.getValues('naturalLanguageQuery'),
+        sqlQuery: generatedSql!,
+        status: 'Éxito'
+      });
     }, 1500);
   }
 
@@ -159,13 +191,14 @@ export default function QueryInterface() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Resultados');
     XLSX.writeFile(workbook, 'resultados_consulta.xlsx');
+    toast({ title: 'Descarga Iniciada', description: 'El archivo Excel se está descargando.'});
   };
 
   const handleDownloadPdf = () => {
     if (!queryResult) return;
     const doc = new jsPDF();
     const tableHead = [Object.keys(queryResult[0])];
-    const tableBody = queryResult.map(row => Object.values(row));
+    const tableBody = queryResult.map(row => Object.values(row).map(String)); // Ensure all data is string
     
     autoTable(doc, {
         head: tableHead,
@@ -176,8 +209,10 @@ export default function QueryInterface() {
     });
 
     doc.save('resultados_consulta.pdf');
+    toast({ title: 'Descarga Iniciada', description: 'El archivo PDF se está descargando.'});
   };
 
+  const tableHeaders = queryResult ? Object.keys(queryResult[0] || {}) : [];
 
   return (
     <div className="space-y-8">
@@ -216,7 +251,7 @@ export default function QueryInterface() {
                         <FormLabel>Consulta en Lenguaje Natural</FormLabel>
                         <FormControl>
                         <Textarea
-                            placeholder="p. ej., 'muéstrame las ventas de los últimos tres meses, ordenadas por precio de mayor a menor'"
+                            placeholder="p. ej., 'muéstrame todos los clientes de Nueva York'"
                             className="min-h-[100px] resize-none text-base"
                             {...field}
                         />
@@ -227,7 +262,7 @@ export default function QueryInterface() {
                 />
               </div>
 
-              <Button type="submit" disabled={isLoadingSql}>
+              <Button type="submit" disabled={isLoadingSql || !form.formState.isValid}>
                 {isLoadingSql ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -287,7 +322,7 @@ export default function QueryInterface() {
                 className="flex items-center justify-center p-8 text-muted-foreground"
             >
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Ejecutando consulta...
+                Ejecutando consulta y obteniendo resultados...
             </motion.div>
         )}
         {queryResult && (
@@ -307,19 +342,17 @@ export default function QueryInterface() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ID</TableHead>
-                      <TableHead>Producto</TableHead>
-                      <TableHead>Ventas</TableHead>
-                      <TableHead>Mes</TableHead>
+                      {tableHeaders.map(header => (
+                        <TableHead key={header} className="capitalize">{header.replace(/_/g, ' ')}</TableHead>
+                      ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {queryResult.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell>{row.id}</TableCell>
-                        <TableCell>{row.product}</TableCell>
-                        <TableCell>{row.sales}</TableCell>
-                        <TableCell>{row.month}</TableCell>
+                    {queryResult.map((row, rowIndex) => (
+                      <TableRow key={rowIndex}>
+                        {tableHeaders.map(header => (
+                          <TableCell key={`${rowIndex}-${header}`}>{row[header]}</TableCell>
+                        ))}
                       </TableRow>
                     ))}
                   </TableBody>
