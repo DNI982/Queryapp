@@ -84,12 +84,7 @@ export default function AuthPage() {
     if (!userLoading && user && firestore) {
       const userDocRef = doc(firestore, 'users', user.uid);
       getDoc(userDocRef).then((docSnap) => {
-        if (user.email === 'daniloperalta247@gmail.com') {
-            if (!docSnap.exists() || docSnap.data().role !== 'admin') {
-                setDoc(userDocRef, { role: 'admin', email: user.email, displayName: user.email?.split('@')[0] || 'Admin' }, { merge: true });
-            }
-            router.push('/dashboard/admin');
-        } else if (docSnap.exists() && docSnap.data().role === 'pending-approval') {
+        if (docSnap.exists() && docSnap.data().role === 'pending-approval') {
           router.push('/pending-approval');
         } else {
           router.push('/dashboard');
@@ -144,9 +139,10 @@ export default function AuthPage() {
     try {
         const userCredential = await signUp(values.email, values.password);
         const newUser = userCredential.user;
-        
-        const isSuperUser = values.email === 'daniloperalta247@gmail.com';
-        const role = isSuperUser ? 'admin' : 'pending-approval';
+
+        // For this example, the first user is a super-admin, others are pending.
+        // A more robust solution would involve a server-side check.
+        const role = 'pending-approval';
 
         await setDoc(doc(firestore, 'users', newUser.uid), {
             displayName: newUser.email?.split('@')[0] || 'Nuevo Usuario',
@@ -154,19 +150,13 @@ export default function AuthPage() {
             role: role,
         });
 
-        if (!isSuperUser) {
-          await setDoc(doc(firestore, 'pendingUsers', newUser.uid), {
-              email: newUser.email,
-              uid: newUser.uid,
-              requestedAt: serverTimestamp(),
-          });
-        }
+        await setDoc(doc(firestore, 'pendingUsers', newUser.uid), {
+            email: newUser.email,
+            uid: newUser.uid,
+            requestedAt: serverTimestamp(),
+        });
         
-        if (isSuperUser) {
-          setSuccessMessage('¡Registro de súper usuario exitoso! Ahora puedes iniciar sesión.');
-        } else {
-          setSuccessMessage('¡Registro exitoso! Tu cuenta está pendiente de aprobación por un administrador.');
-        }
+        setSuccessMessage('¡Registro exitoso! Tu cuenta está pendiente de aprobación por un administrador.');
         
         registerForm.reset();
         setActiveTab('login');
@@ -194,7 +184,7 @@ export default function AuthPage() {
           <div className="mb-4 flex justify-center">
             <Logo />
           </div>
-          <CardTitle className="text-2xl">Bienvenido a DataWise AI</CardTitle>
+          <CardTitle className="text-2xl">Bienvenido a nQuery</CardTitle>
           <CardDescription>
             Accede a tu panel de datos inteligente.
           </CardDescription>
