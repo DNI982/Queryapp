@@ -19,27 +19,27 @@ import { Badge } from '@/components/ui/badge';
 const dataSources = [
   {
     name: 'PostgreSQL',
-    description: 'Production database with user and sales data.',
+    description: 'Base de datos de producción con datos de usuarios y ventas.',
     icon: PostgreSqlIcon,
-    status: 'Connected',
+    status: 'Conectado',
   },
   {
     name: 'MongoDB',
-    description: 'Document store for application logs and events.',
+    description: 'Almacén de documentos para registros y eventos de la aplicación.',
     icon: MongoDbIcon,
-    status: 'Connected',
+    status: 'Conectado',
   },
   {
     name: 'MariaDB',
-    description: 'Legacy database for archival records.',
+    description: 'Base de datos heredada para registros de archivo.',
     icon: MariaDbIcon,
-    status: 'Disconnected',
+    status: 'Desconectado',
   },
   {
     name: 'Oracle',
-    description: 'Financial data warehouse for reporting.',
+    description: 'Almacén de datos financieros para informes.',
     icon: OracleIcon,
-    status: 'Connected',
+    status: 'Conectado',
   },
 ];
 
@@ -55,7 +55,7 @@ export default function DataSourcesPage() {
         </div>
         <Button>
           <PlusCircle className="mr-2 h-4 w-4" />
-          Add New Source
+          Añadir Nueva Fuente
         </Button>
       </div>
 
@@ -68,7 +68,7 @@ export default function DataSourcesPage() {
                 </div>
                 <div className="flex-1">
                     <CardTitle>{source.name}</CardTitle>
-                    <Badge variant={source.status === 'Connected' ? 'default' : 'destructive'} className={source.status === 'Connected' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}>
+                    <Badge variant={source.status === 'Conectado' ? 'default' : 'destructive'} className={source.status === 'Conectado' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}>
                         {source.status}
                     </Badge>
                 </div>
@@ -80,7 +80,7 @@ export default function DataSourcesPage() {
             </CardContent>
             <CardFooter>
               <Button variant="outline" className="w-full">
-                Manage
+                Gestionar
               </Button>
             </CardFooter>
           </Card>

@@ -18,8 +18,8 @@ export function CodeBlock({ code, className, ...props }: CodeBlockProps) {
     navigator.clipboard.writeText(code);
     setHasCopied(true);
     toast({
-      title: 'Copied!',
-      description: 'The SQL query has been copied to your clipboard.',
+      title: '¡Copiado!',
+      description: 'La consulta SQL ha sido copiada a tu portapapeles.',
     });
     setTimeout(() => {
       setHasCopied(false);
@@ -45,7 +45,7 @@ export function CodeBlock({ code, className, ...props }: CodeBlockProps) {
         ) : (
           <Copy className="h-4 w-4" />
         )}
-        <span className="sr-only">Copy code</span>
+        <span className="sr-only">Copiar código</span>
       </Button>
       <pre>
         <code>{code}</code>

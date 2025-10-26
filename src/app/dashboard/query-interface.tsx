@@ -31,17 +31,17 @@ import { useToast } from '@/hooks/use-toast';
 
 const formSchema = z.object({
   naturalLanguageQuery: z.string().min(10, {
-    message: 'Query must be at least 10 characters.',
+    message: 'La consulta debe tener al menos 10 caracteres.',
   }),
 });
 
 const mockData = [
-    { id: 1, product: 'Laptop Pro', sales: 150, month: 'January' },
-    { id: 2, product: 'Wireless Mouse', sales: 450, month: 'January' },
-    { id: 3, product: 'Laptop Pro', sales: 200, month: 'February' },
-    { id: 4, product: 'Webcam HD', sales: 300, month: 'February' },
-    { id: 5, product: 'Laptop Pro', sales: 180, month: 'March' },
-    { id: 6, product: 'Wireless Mouse', sales: 500, month: 'March' },
+    { id: 1, product: 'Laptop Pro', sales: 150, month: 'Enero' },
+    { id: 2, product: 'Ratón Inalámbrico', sales: 450, month: 'Enero' },
+    { id: 3, product: 'Laptop Pro', sales: 200, month: 'Febrero' },
+    { id: 4, product: 'Webcam HD', sales: 300, month: 'Febrero' },
+    { id: 5, product: 'Laptop Pro', sales: 180, month: 'Marzo' },
+    { id: 6, product: 'Ratón Inalámbrico', sales: 500, month: 'Marzo' },
 ];
 
 export default function QueryInterface() {
@@ -66,7 +66,7 @@ export default function QueryInterface() {
     if (result.error) {
       toast({
         variant: 'destructive',
-        title: 'Error generating SQL',
+        title: 'Error al generar SQL',
         description: result.error,
       });
     } else {
@@ -96,7 +96,7 @@ export default function QueryInterface() {
                   <FormItem>
                     <FormControl>
                       <Textarea
-                        placeholder="e.g., 'show me sales for the last three months, ordered by price from highest to lowest'"
+                        placeholder="p. ej., 'muéstrame las ventas de los últimos tres meses, ordenadas por precio de mayor a menor'"
                         className="min-h-[100px] resize-none text-base"
                         {...field}
                       />
@@ -111,7 +111,7 @@ export default function QueryInterface() {
                 ) : (
                   <Sparkles className="mr-2 h-4 w-4" />
                 )}
-                Generate SQL
+                Generar SQL
               </Button>
             </form>
           </Form>
@@ -127,7 +127,7 @@ export default function QueryInterface() {
                 className="flex items-center justify-center p-8 text-muted-foreground"
             >
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Generating SQL with AI...
+                Generando SQL con IA...
             </motion.div>
         )}
         {generatedSql && (
@@ -138,7 +138,7 @@ export default function QueryInterface() {
           >
             <Card>
               <CardHeader>
-                <CardTitle>Generated SQL</CardTitle>
+                <CardTitle>SQL Generado</CardTitle>
               </CardHeader>
               <CardContent>
                 <CodeBlock code={generatedSql} />
@@ -148,7 +148,7 @@ export default function QueryInterface() {
                   ) : (
                     <TableIcon className="mr-2 h-4 w-4" />
                   )}
-                  Run Query
+                  Ejecutar Consulta
                 </Button>
               </CardContent>
             </Card>
@@ -165,7 +165,7 @@ export default function QueryInterface() {
                 className="flex items-center justify-center p-8 text-muted-foreground"
             >
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Executing query...
+                Ejecutando consulta...
             </motion.div>
         )}
         {queryResult && (
@@ -175,7 +175,7 @@ export default function QueryInterface() {
           >
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Query Results</CardTitle>
+                <CardTitle>Resultados de la Consulta</CardTitle>
                 <div className="space-x-2">
                     <Button variant="outline" size="sm"><Download className="mr-2 h-4 w-4"/> Excel</Button>
                     <Button variant="outline" size="sm"><Download className="mr-2 h-4 w-4"/> PDF</Button>
@@ -186,9 +186,9 @@ export default function QueryInterface() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>ID</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead>Sales</TableHead>
-                      <TableHead>Month</TableHead>
+                      <TableHead>Producto</TableHead>
+                      <TableHead>Ventas</TableHead>
+                      <TableHead>Mes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

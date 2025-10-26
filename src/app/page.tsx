@@ -20,9 +20,9 @@ export default function LoginPage() {
           <div className="mb-4 flex justify-center">
             <Logo />
           </div>
-          <CardTitle className="text-2xl">Welcome to DataWise AI</CardTitle>
+          <CardTitle className="text-2xl">Bienvenido a DataWise AI</CardTitle>
           <CardDescription>
-            Sign in to access your intelligent data dashboard.
+            Inicia sesión para acceder a tu panel de datos inteligente.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -38,20 +38,20 @@ export default function LoginPage() {
             </div>
             <div className="grid gap-2">
               <div className="flex items-center">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">Contraseña</Label>
               </div>
               <Input id="password" type="password" required />
             </div>
             <Button asChild type="submit" className="w-full">
-              <Link href="/dashboard">Sign In</Link>
+              <Link href="/dashboard">Iniciar Sesión</Link>
             </Button>
           </div>
         </CardContent>
         <CardFooter className="flex justify-center text-sm">
           <p>
-            Don&apos;t have an account?{" "}
+            ¿No tienes una cuenta?{" "}
             <Link href="#" className="underline text-primary">
-              Sign up
+              Regístrate
             </Link>
           </p>
         </CardFooter>

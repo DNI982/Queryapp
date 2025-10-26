@@ -90,17 +90,17 @@ export default function DashboardLayout({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent side="right" align="start" className="w-56">
-                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                    <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem>
                         <Settings className="mr-2 h-4 w-4" />
-                        <span>Settings</span>
+                        <span>Configuración</span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                      <DropdownMenuItem asChild>
                         <Link href="/">
                             <LogOut className="mr-2 h-4 w-4" />
-                            <span>Log out</span>
+                            <span>Cerrar Sesión</span>
                         </Link>
                     </DropdownMenuItem>
                 </DropdownMenuContent>

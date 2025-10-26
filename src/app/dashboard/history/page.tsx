@@ -9,37 +9,38 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 const queryHistory = [
   {
     id: 'q1',
-    naturalQuery: 'Show me all customers from New York.',
+    naturalQuery: 'Muéstrame todos los clientes de Nueva York.',
     sqlQuery: "SELECT * FROM customers WHERE city = 'New York';",
     timestamp: new Date('2023-10-26T10:00:00Z'),
-    status: 'Success',
+    status: 'Éxito',
   },
   {
     id: 'q2',
-    naturalQuery: 'What are the total sales for each product category?',
+    naturalQuery: '¿Cuáles son las ventas totales por categoría de producto?',
     sqlQuery:
       'SELECT category, SUM(total_amount) as total_sales FROM sales s JOIN products p ON s.product_id = p.id GROUP BY p.category;',
     timestamp: new Date('2023-10-26T10:05:00Z'),
-    status: 'Success',
+    status: 'Éxito',
   },
   {
     id: 'q3',
-    naturalQuery: 'Find top 5 most recent sales.',
+    naturalQuery: 'Encuentra las 5 ventas más recientes.',
     sqlQuery: 'SELECT * FROM sales ORDER BY sale_date DESC LIMIT 5;',
     timestamp: new Date('2023-10-26T10:10:00Z'),
-    status: 'Success',
+    status: 'Éxito',
   },
   {
     id: 'q4',
-    naturalQuery: 'List users who registered in the last 30 days.',
+    naturalQuery: 'Lista los usuarios que se registraron en los últimos 30 días.',
     sqlQuery:
       "SELECT * FROM customers WHERE registration_date >= DATE('now', '-30 days');",
     timestamp: new Date('2023-10-26T10:15:00Z'),
-    status: 'Failed',
+    status: 'Fallido',
   },
 ];
 
@@ -76,14 +77,14 @@ export default function HistoryPage() {
                     {item.sqlQuery}
                   </TableCell>
                   <TableCell>
-                    {format(item.timestamp, 'MMM d, yyyy, h:mm a')}
+                    {format(item.timestamp, 'd MMM, yyyy, h:mm a', { locale: es })}
                   </TableCell>
                   <TableCell>
                     <Badge
                       variant={
-                        item.status === 'Success' ? 'default' : 'destructive'
+                        item.status === 'Éxito' ? 'default' : 'destructive'
                       }
-                      className={item.status === 'Success' ? 'bg-green-500/20 text-green-400 border-green-500/30' : ''}
+                      className={item.status === 'Éxito' ? 'bg-green-500/20 text-green-400 border-green-500/30' : ''}
                     >
                       {item.status}
                     </Badge>

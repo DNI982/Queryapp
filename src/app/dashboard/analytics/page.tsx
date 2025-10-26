@@ -24,12 +24,12 @@ import {
 } from '@/components/ui/chart';
 
 const salesData = [
-  { month: 'January', sales: 4000 },
-  { month: 'February', sales: 3000 },
-  { month: 'March', sales: 2000 },
-  { month: 'April', sales: 2780 },
-  { month: 'May', sales: 1890 },
-  { month: 'June', sales: 2390 },
+  { month: 'Enero', sales: 4000 },
+  { month: 'Febrero', sales: 3000 },
+  { month: 'Marzo', sales: 2000 },
+  { month: 'Abril', sales: 2780 },
+  { month: 'Mayo', sales: 1890 },
+  { month: 'Junio', sales: 2390 },
 ];
 
 const queriesData = [
@@ -44,14 +44,14 @@ const queriesData = [
 
 const salesChartConfig: ChartConfig = {
   sales: {
-    label: 'Sales',
+    label: 'Ventas',
     color: 'hsl(var(--primary))',
   },
 };
 
 const queriesChartConfig: ChartConfig = {
     count: {
-        label: "Queries",
+        label: "Consultas",
         color: "hsl(var(--accent))",
     },
 };
@@ -69,8 +69,8 @@ export default function AnalyticsPage() {
       <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Sales Over Time</CardTitle>
-            <CardDescription>Last 6 months</CardDescription>
+            <CardTitle>Ventas a lo largo del tiempo</CardTitle>
+            <CardDescription>Últimos 6 meses</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={salesChartConfig} className="h-[250px] w-full">
@@ -92,8 +92,8 @@ export default function AnalyticsPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Queries per Day</CardTitle>
-            <CardDescription>Last 7 days</CardDescription>
+            <CardTitle>Consultas por día</CardTitle>
+            <CardDescription>Últimos 7 días</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={queriesChartConfig} className="h-[250px] w-full">
@@ -104,7 +104,7 @@ export default function AnalyticsPage() {
                   tickLine={false}
                   tickMargin={10}
                   axisLine={false}
-                  tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
+                  tickFormatter={(value) => new Date(value).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
                 />
                 <YAxis />
                 <Tooltip cursor={false} content={<ChartTooltipContent />} />

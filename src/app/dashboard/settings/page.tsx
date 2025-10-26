@@ -22,40 +22,40 @@ export default function SettingsPage() {
 
       <Tabs defaultValue="profile">
         <TabsList className="grid w-full grid-cols-2 max-w-md">
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="appearance">Appearance</TabsTrigger>
+          <TabsTrigger value="profile">Perfil</TabsTrigger>
+          <TabsTrigger value="appearance">Apariencia</TabsTrigger>
         </TabsList>
         <TabsContent value="profile">
           <Card>
             <CardHeader>
-              <CardTitle>Profile</CardTitle>
+              <CardTitle>Perfil</CardTitle>
               <CardDescription>
-                Make changes to your public information here.
+                Realice cambios en su información pública aquí.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Name</Label>
+                <Label htmlFor="name">Nombre</Label>
                 <Input id="name" defaultValue="Analista" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input id="email" type="email" defaultValue="analista@datawise.ai" />
               </div>
-              <Button>Save changes</Button>
+              <Button>Guardar cambios</Button>
             </CardContent>
           </Card>
         </TabsContent>
         <TabsContent value="appearance">
           <Card>
             <CardHeader>
-              <CardTitle>Appearance</CardTitle>
+              <CardTitle>Apariencia</CardTitle>
               <CardDescription>
-                Customize the look and feel of the application.
+                Personaliza la apariencia de la aplicación.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className='text-sm text-muted-foreground'>Appearance settings will be available here.</p>
+              <p className='text-sm text-muted-foreground'>La configuración de la apariencia estará disponible aquí.</p>
             </CardContent>
           </Card>
         </TabsContent>
