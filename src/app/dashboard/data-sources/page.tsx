@@ -61,7 +61,7 @@ import { useToast } from '@/hooks/use-toast';
 import { databaseSchemaUnderstanding } from '@/ai/flows/database-schema-understanding';
 import { Textarea } from '@/components/ui/textarea';
 import { useFirestore } from '@/firebase';
-import { collection, doc, setDoc, onSnapshot, query } from 'firebase/firestore';
+import { collection, doc, setDoc, onSnapshot, query, updateDoc } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const iconMap = {
@@ -87,6 +87,7 @@ interface DataSource {
   username?: string;
   database?: string;
   connectionString?: string;
+  schema?: string;
 }
 
 const formSchema = z.discriminatedUnion("connectionType", [
@@ -123,14 +124,14 @@ const schemaAnalysisSchema = z.object({
 const emptyFormValues: z.infer<typeof formSchema> = {
   connectionType: 'fields',
   name: '',
+  type: undefined,
   description: '',
   host: '',
+  port: undefined,
   username: '',
   password: '',
   database: '',
-  port: undefined,
   connectionString: '',
-  type: undefined,
 };
 
 export default function DataSourcesPage() {
@@ -208,6 +209,12 @@ export default function DataSourcesPage() {
     }
 }, [selectedDataSource, isManageDialogOpen, form])
 
+  useEffect(() => {
+    if (selectedDataSource && isAnalyzeDialogOpen) {
+      analysisForm.setValue('schema', selectedDataSource.schema || '');
+    }
+  }, [selectedDataSource, isAnalyzeDialogOpen, analysisForm]);
+
   async function onDataSourceSubmit(values: z.infer<typeof formSchema>) {
     if (!firestore) {
         toast({ variant: 'destructive', title: 'Error', description: 'La base de datos no está disponible.'});
@@ -215,10 +222,10 @@ export default function DataSourcesPage() {
     }
     
     try {
-        let dataToSave: Omit<DataSource, 'id' | 'icon' | 'status'> = { ...values };
+        let dataToSave: Omit<DataSource, 'id' | 'icon' | 'status' | 'schema'> & { schema?: string } = { ...values };
 
         if (selectedDataSource) { // Editing
-          await setDoc(doc(firestore, "dataSources", selectedDataSource.id), dataToSave);
+          await setDoc(doc(firestore, "dataSources", selectedDataSource.id), dataToSave, { merge: true });
           toast({
             title: "Fuente de Datos Actualizada",
             description: `Se han guardado los cambios en '${values.name}'.`,
@@ -227,6 +234,7 @@ export default function DataSourcesPage() {
           setSelectedDataSource(null);
         } else { // Adding
           const newId = crypto.randomUUID();
+          dataToSave.schema = ''; // Initialize schema field
           await setDoc(doc(firestore, "dataSources", newId), dataToSave);
           await setDoc(doc(collection(firestore, `dataSource_queries_${newId}`), '_init'), { initialized: true });
 
@@ -244,7 +252,7 @@ export default function DataSourcesPage() {
   }
   
   async function onAnalyzeSchemaSubmit(values: z.infer<typeof schemaAnalysisSchema>) {
-      if (!selectedDataSource) return;
+      if (!selectedDataSource || !firestore) return;
       setIsAnalyzing(true);
       setAnalysisResult(null);
       try {
@@ -253,12 +261,24 @@ export default function DataSourcesPage() {
               databaseType: selectedDataSource.type,
           });
           setAnalysisResult(result.databaseSchemaDescription);
+
+          // Save the schema to Firestore
+          const dataSourceRef = doc(firestore, 'dataSources', selectedDataSource.id);
+          await updateDoc(dataSourceRef, {
+              schema: values.schema
+          });
+
+          toast({
+              title: "Esquema Guardado",
+              description: `El esquema para '${selectedDataSource.name}' ha sido guardado exitosamente.`
+          });
+
       } catch (error) {
-          console.error("Schema analysis failed", error);
+          console.error("Schema analysis or saving failed", error);
           toast({
               variant: 'destructive',
               title: "Error en el Análisis",
-              description: "No se pudo analizar el esquema. Por favor, inténtelo de nuevo."
+              description: "No se pudo analizar o guardar el esquema. Por favor, inténtelo de nuevo."
           })
       } finally {
           setIsAnalyzing(false);
@@ -286,7 +306,7 @@ export default function DataSourcesPage() {
     } else if (mode === 'manage') {
         setIsManageDialogOpen(true);
     } else if (mode === 'analyze') {
-        analysisForm.reset();
+        analysisForm.reset({ schema: dataSource?.schema || '' });
         setAnalysisResult(null);
         setIsAnalyzeDialogOpen(true);
     }
@@ -374,7 +394,7 @@ export default function DataSourcesPage() {
                           <FormItem>
                             <FormLabel>Host</FormLabel>
                             <FormControl>
-                              <Input placeholder="localhost" {...field} />
+                              <Input placeholder="localhost" {...field} value={field.value ?? ''} />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -401,7 +421,7 @@ export default function DataSourcesPage() {
                         <FormItem>
                           <FormLabel>Base de Datos</FormLabel>
                           <FormControl>
-                            <Input placeholder="nombre_de_la_db" {...field} />
+                            <Input placeholder="nombre_de_la_db" {...field} value={field.value ?? ''} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -415,7 +435,7 @@ export default function DataSourcesPage() {
                             <FormItem>
                               <FormLabel>Usuario</FormLabel>
                               <FormControl>
-                                <Input placeholder="admin" {...field} />
+                                <Input placeholder="admin" {...field} value={field.value ?? ''} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -428,7 +448,7 @@ export default function DataSourcesPage() {
                             <FormItem>
                               <FormLabel>Contraseña</FormLabel>
                               <FormControl>
-                                <Input type="password" placeholder="••••••••" {...field} />
+                                <Input type="password" placeholder="••••••••" {...field} value={field.value ?? ''} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -519,7 +539,7 @@ export default function DataSourcesPage() {
           <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>Analizar Esquema de {selectedDataSource?.name}</DialogTitle>
-              <DialogDescription>Pegue aquí el esquema de su base de datos para que la IA lo entienda.</DialogDescription>
+              <DialogDescription>Pegue aquí el esquema de su base de datos para que la IA lo entienda y se guarde para futuras consultas.</DialogDescription>
             </DialogHeader>
             <Form {...analysisForm}>
               <form onSubmit={analysisForm.handleSubmit(onAnalyzeSchemaSubmit)} className="space-y-4 py-4">
@@ -544,7 +564,7 @@ export default function DataSourcesPage() {
                   <Button type="submit" disabled={isAnalyzing}>
                     {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     <ScanSearch className="mr-2 h-4 w-4" />
-                    Analizar con IA
+                    Analizar y Guardar Esquema
                   </Button>
                 </DialogFooter>
               </form>
@@ -585,5 +605,3 @@ export default function DataSourcesPage() {
     </div>
   );
 }
-
-    

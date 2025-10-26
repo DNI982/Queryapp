@@ -41,7 +41,7 @@ import { generateSQL } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryHistory } from '@/hooks/use-query-history';
 import { useFirestore } from '@/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, type DocumentData } from 'firebase/firestore';
 
 const formSchema = z.object({
   naturalLanguageQuery: z.string().min(10, {
@@ -50,12 +50,19 @@ const formSchema = z.object({
   dataSource: z.string().min(1, { message: "Debe seleccionar una fuente de datos."})
 });
 
+interface DataSource {
+    id: string;
+    name: string;
+    type: string;
+    schema: string;
+}
+
 export default function QueryInterface() {
   const [generatedSql, setGeneratedSql] = useState<string | null>(null);
   const [queryResult, setQueryResult] = useState<any[] | null>(null);
   const [isLoadingSql, setIsLoadingSql] = useState(false);
   const [isLoadingResult, setIsLoadingResult] = useState(false);
-  const [dataSources, setDataSources] = useState<any>({});
+  const [dataSources, setDataSources] = useState<DataSource[]>([]);
   const { toast } = useToast();
   const { addQueryToHistory } = useQueryHistory();
   const firestore = useFirestore();
@@ -69,23 +76,24 @@ export default function QueryInterface() {
   });
 
   useEffect(() => {
-    if (firestore) {
-      const fetchData = async () => {
-        const querySnapshot = await getDocs(collection(firestore, "dataSources"));
-        const sources: any = {};
+    if (!firestore) return;
+
+    const q = query(collection(firestore, "dataSources"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const sources: DataSource[] = [];
         querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            sources[doc.id] = {
+            const data = doc.data() as DocumentData;
+            sources.push({
+                id: doc.id,
                 name: `${data.name} (${data.type})`,
                 type: data.type,
-                // Assuming schema is stored elsewhere or not needed for this component's initial display
-                schema: `Traer el esquema para ${data.name} (${data.type})` 
-            };
+                schema: data.schema || ''
+            });
         });
         setDataSources(sources);
-      };
-      fetchData();
-    }
+    });
+
+    return () => unsubscribe();
   }, [firestore]);
 
   async function onSqlGenerate(values: z.infer<typeof formSchema>) {
@@ -93,8 +101,27 @@ export default function QueryInterface() {
     setGeneratedSql(null);
     setQueryResult(null);
 
-    const selectedDataSourceKey = values.dataSource as keyof typeof dataSources;
-    const selectedDataSource = dataSources[selectedDataSourceKey];
+    const selectedDataSource = dataSources.find(ds => ds.id === values.dataSource);
+
+    if (!selectedDataSource) {
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Fuente de datos no encontrada.'
+        });
+        setIsLoadingSql(false);
+        return;
+    }
+
+    if (!selectedDataSource.schema) {
+        toast({
+            variant: 'destructive',
+            title: 'Esquema Faltante',
+            description: `Por favor, primero analice y guarde un esquema para '${selectedDataSource.name}' en la sección de Fuentes de Datos.`
+        });
+        setIsLoadingSql(false);
+        return;
+    }
 
     const result = await generateSQL({
         naturalLanguageQuery: values.naturalLanguageQuery,
@@ -191,8 +218,8 @@ export default function QueryInterface() {
                                 </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    {Object.entries(dataSources).map(([key, source]) => (
-                                        <SelectItem key={key} value={key}>{(source as any).name}</SelectItem>
+                                    {dataSources.map((source) => (
+                                        <SelectItem key={source.id} value={source.id}>{source.name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
