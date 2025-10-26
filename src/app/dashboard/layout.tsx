@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   SidebarProvider,
   Sidebar,
@@ -24,6 +24,7 @@ import {
   MoreHorizontal,
   LogOut,
   Palette,
+  Loader2,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -31,6 +32,9 @@ import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { QueryHistoryProvider } from '@/hooks/use-query-history';
+import { useUser } from '@/firebase';
+import { useAuthActions } from '@/firebase/client-provider';
+import { useEffect } from 'react';
 
 const userAvatar = PlaceHolderImages.find((img) => img.id === 'user-avatar');
 
@@ -40,7 +44,18 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, loading } = useUser();
+  const { signOut } = useAuthActions();
+  
   const isActive = (path: string) => pathname === path || (path.startsWith(pathname) && pathname !== '/dashboard');
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/');
+    }
+  }, [user, loading, router]);
+
 
   const menuItems = [
     { href: '/dashboard', label: 'Consultas', icon: DatabaseZap },
@@ -48,6 +63,19 @@ export default function DashboardLayout({
     { href: '/dashboard/history', label: 'Historial', icon: History },
     { href: '/dashboard/analytics', label: 'Analíticas', icon: BarChart2 },
   ];
+
+  const handleSignOut = async () => {
+    await signOut();
+    router.push('/');
+  }
+  
+  if (loading || !user) {
+    return (
+        <div className="flex h-screen items-center justify-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
+    )
+  }
 
   return (
     <QueryHistoryProvider>
@@ -81,12 +109,12 @@ export default function DashboardLayout({
                   <DropdownMenuTrigger asChild>
                       <Button variant="ghost" className="w-full justify-start gap-2 px-2 h-auto">
                           <Avatar className="h-8 w-8">
-                              {userAvatar && <AvatarImage src={userAvatar.imageUrl} alt="User Avatar" />}
-                              <AvatarFallback>AV</AvatarFallback>
+                              {user?.photoURL && <AvatarImage src={user.photoURL} alt="User Avatar" />}
+                              <AvatarFallback>{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
                           </Avatar>
                           <div className="text-left group-data-[collapsible=icon]:hidden">
-                              <p className="font-medium text-sm">Analista</p>
-                              <p className="text-xs text-muted-foreground">analista@datawise.ai</p>
+                              <p className="font-medium text-sm truncate">{user?.displayName || 'Analista'}</p>
+                              <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                           </div>
                           <MoreHorizontal className="ml-auto group-data-[collapsible=icon]:hidden" />
                       </Button>
@@ -107,11 +135,9 @@ export default function DashboardLayout({
                           </Link>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem asChild>
-                          <Link href="/">
-                              <LogOut className="mr-2 h-4 w-4" />
-                              <span>Cerrar Sesión</span>
-                          </Link>
+                      <DropdownMenuItem onClick={handleSignOut}>
+                          <LogOut className="mr-2 h-4 w-4" />
+                          <span>Cerrar Sesión</span>
                       </DropdownMenuItem>
                   </DropdownMenuContent>
               </DropdownMenu>
