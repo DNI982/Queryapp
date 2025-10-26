@@ -153,13 +153,18 @@ export default function QueryInterface() {
   function onRunQuery() {
     setIsLoadingResult(true);
     // This is a mock implementation. In a real scenario, you would execute the SQL query.
+    // The main purpose is to generate the SQL query for the user to use in their own database client.
     setTimeout(() => {
-      let resultData = [{"status": "ejecución de consulta simulada", "resultado": "éxito"}];
+      let resultData = [
+        {"columna_1": "dato_simulado_a", "columna_2": 123},
+        {"columna_1": "dato_simulado_b", "columna_2": 456},
+        {"columna_1": "nota": "Esta es una simulación. Copie el SQL y ejecútelo en su cliente de base de datos."}
+      ];
       setQueryResult(resultData);
       setIsLoadingResult(false);
       toast({
-        title: 'Consulta Ejecutada',
-        description: `Se han obtenido ${resultData.length} resultados.`,
+        title: 'Ejecución Simulada',
+        description: `Se han mostrado resultados de ejemplo.`,
       });
       addQueryToHistory({
         naturalQuery: form.getValues('naturalLanguageQuery'),
@@ -320,7 +325,7 @@ export default function QueryInterface() {
           >
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Resultados de la Consulta</CardTitle>
+                <CardTitle>Resultados de la Consulta (Simulación)</CardTitle>
                 <div className="space-x-2">
                     <Button variant="outline" size="sm" onClick={handleDownloadExcel}><Download className="mr-2 h-4 w-4"/> Excel</Button>
                     <Button variant="outline" size="sm" onClick={handleDownloadPdf}><Download className="mr-2 h-4 w-4"/> PDF</Button>
@@ -339,7 +344,7 @@ export default function QueryInterface() {
                     {queryResult.map((row, rowIndex) => (
                       <TableRow key={rowIndex}>
                         {tableHeaders.map(header => (
-                          <TableCell key={`${rowIndex}-${header}`}>{row[header]}</TableCell>
+                          <TableCell key={`${rowIndex}-${header}`}>{String(row[header])}</TableCell>
                         ))}
                       </TableRow>
                     ))}
