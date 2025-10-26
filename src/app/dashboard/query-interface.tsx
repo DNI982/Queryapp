@@ -158,7 +158,7 @@ export default function QueryInterface() {
       let resultData = [
         {"columna_1": "dato_simulado_a", "columna_2": 123},
         {"columna_1": "dato_simulado_b", "columna_2": 456},
-        {"columna_1": "nota": "Esta es una simulación. Copie el SQL y ejecútelo en su cliente de base de datos."}
+        {"columna_1": "NOTA", "columna_2": "Esta es una simulación. Copie el SQL y ejecútelo en su cliente de base de datos."}
       ];
       setQueryResult(resultData);
       setIsLoadingResult(false);
