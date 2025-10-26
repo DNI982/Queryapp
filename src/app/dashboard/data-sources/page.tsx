@@ -20,8 +20,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-  DialogClose,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -56,17 +54,21 @@ import {
   MongoDbIcon,
   MariaDbIcon,
   OracleIcon,
+  MySqlIcon,
 } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { databaseSchemaUnderstanding } from '@/ai/flows/database-schema-understanding';
 import { Textarea } from '@/components/ui/textarea';
+import { useFirestore } from '@/firebase';
+import { collection, doc, setDoc, onSnapshot, query } from 'firebase/firestore';
 
 const iconMap = {
   PostgreSQL: PostgreSqlIcon,
   MongoDB: MongoDbIcon,
   MariaDB: MariaDbIcon,
   Oracle: OracleIcon,
+  MySQL: MySqlIcon,
 };
 
 type DataSourceType = keyof typeof iconMap;
@@ -84,60 +86,9 @@ interface DataSource {
   database?: string;
 }
 
-const initialDataSources: DataSource[] = [
-  {
-    id: '1',
-    name: 'PostgreSQL de Producción',
-    type: 'PostgreSQL',
-    description: 'Base de datos de producción con datos de usuarios y ventas.',
-    icon: PostgreSqlIcon,
-    status: 'Conectado',
-    host: 'prod.db.example.com',
-    port: 5432,
-    username: 'prod_user',
-    database: 'production_db'
-  },
-  {
-    id: '2',
-    name: 'MongoDB de Logs',
-    type: 'MongoDB',
-    description: 'Almacén de documentos para registros y eventos de la aplicación.',
-    icon: MongoDbIcon,
-    status: 'Conectado',
-    host: 'logs.db.example.com',
-    port: 27017,
-    username: 'log_reader',
-    database: 'app_logs'
-  },
-  {
-    id: '3',
-    name: 'MariaDB Heredada',
-    type: 'MariaDB',
-    description: 'Base de datos heredada para registros de archivo.',
-    icon: MariaDbIcon,
-    status: 'Desconectado',
-    host: 'archive.db.example.com',
-    port: 3306,
-    username: 'archive_user',
-    database: 'legacy_archive'
-  },
-  {
-    id: '4',
-    name: 'Oracle Financiero',
-    type: 'Oracle',
-    description: 'Almacén de datos financieros para informes.',
-    icon: OracleIcon,
-    status: 'Conectado',
-    host: 'finance.db.example.com',
-    port: 1521,
-    username: 'finance_user',
-    database: 'finance_data'
-  },
-];
-
 const formSchema = z.object({
   name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
-  type: z.enum(['PostgreSQL', 'MongoDB', 'MariaDB', 'Oracle'], { required_error: 'Debe seleccionar un tipo de base de datos.' }),
+  type: z.enum(['PostgreSQL', 'MongoDB', 'MariaDB', 'Oracle', 'MySQL'], { required_error: 'Debe seleccionar un tipo de base de datos.' }),
   description: z.string().optional(),
   host: z.string().min(1, 'El host es obligatorio.'),
   port: z.coerce.number().positive('El puerto debe ser un número positivo.'),
@@ -151,7 +102,7 @@ const schemaAnalysisSchema = z.object({
 });
 
 export default function DataSourcesPage() {
-  const [dataSources, setDataSources] = useState<DataSource[]>(initialDataSources);
+  const [dataSources, setDataSources] = useState<DataSource[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isAnalyzeDialogOpen, setIsAnalyzeDialogOpen] = useState(false);
   const [isManageDialogOpen, setIsManageDialogOpen] = useState(false);
@@ -160,9 +111,37 @@ export default function DataSourcesPage() {
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
+  const firestore = useFirestore();
+
+  useEffect(() => {
+    if (!firestore) return;
+    const q = query(collection(firestore, "dataSources"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const sources: DataSource[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        sources.push({
+          id: doc.id,
+          ...data,
+          icon: iconMap[data.type as DataSourceType] || PostgreSqlIcon,
+          status: 'Conectado', // Placeholder status
+        } as DataSource);
+      });
+      setDataSources(sources);
+    });
+    return () => unsubscribe();
+  }, [firestore]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
+    defaultValues: {
+        name: '',
+        description: '',
+        host: '',
+        username: '',
+        password: '',
+        database: ''
+    }
   });
   
   const analysisForm = useForm<z.infer<typeof schemaAnalysisSchema>>({
@@ -178,6 +157,7 @@ export default function DataSourcesPage() {
         case 'PostgreSQL': return 5432;
         case 'MongoDB': return 27017;
         case 'MariaDB': return 3306;
+        case 'MySQL': return 3306;
         case 'Oracle': return 1521;
         default: return undefined;
     }
@@ -186,71 +166,55 @@ export default function DataSourcesPage() {
   useEffect(() => {
       if (selectedDataSource && isManageDialogOpen) {
           form.reset({
-              name: selectedDataSource.name,
-              type: selectedDataSource.type,
-              description: selectedDataSource.description,
-              host: selectedDataSource.host,
-              port: selectedDataSource.port,
-              username: selectedDataSource.username,
-              database: selectedDataSource.database,
+              ...selectedDataSource,
               password: '',
+              port: selectedDataSource.port || undefined,
           })
       } else {
-          form.reset({
-              name: '',
-              description: '',
-              host: '',
-              port: undefined,
-              username: '',
-              password: '',
-              database: ''
-          })
+        form.reset({
+            name: '',
+            type: undefined,
+            description: '',
+            host: '',
+            port: undefined,
+            username: '',
+            password: '',
+            database: ''
+        })
       }
   }, [selectedDataSource, isManageDialogOpen, form])
 
-  function onDataSourceSubmit(values: z.infer<typeof formSchema>) {
-    if (selectedDataSource) { // Editing
-      const updatedDataSources = dataSources.map(ds => 
-        ds.id === selectedDataSource.id ? {
-          ...ds,
-          name: values.name,
-          type: values.type as DataSourceType,
-          description: values.description || 'Sin descripción.',
-          icon: iconMap[values.type as DataSourceType],
-          host: values.host,
-          port: values.port,
-          username: values.username,
-          database: values.database,
-        } : ds
-      );
-      setDataSources(updatedDataSources);
-      toast({
-        title: "Fuente de Datos Actualizada",
-        description: `Se han guardado los cambios en '${values.name}'.`,
-      });
-      setIsManageDialogOpen(false);
-      setSelectedDataSource(null);
-    } else { // Adding
-      const newDataSource: DataSource = {
-        id: crypto.randomUUID(),
-        name: values.name,
-        type: values.type as DataSourceType,
-        description: values.description || 'Sin descripción.',
-        icon: iconMap[values.type as DataSourceType],
-        status: 'Conectado', // Assuming connection test is successful
-        host: values.host,
-        port: values.port,
-        username: values.username,
-        database: values.database,
-      };
-      setDataSources(prev => [...prev, newDataSource]);
-      toast({
-        title: "Conexión Exitosa",
-        description: `La fuente de datos '${values.name}' ha sido añadida.`,
-      });
-      setIsAddDialogOpen(false);
+  async function onDataSourceSubmit(values: z.infer<typeof formSchema>) {
+    if (!firestore) {
+        toast({ variant: 'destructive', title: 'Error', description: 'La base de datos no está disponible.'});
+        return;
     }
-    form.reset();
+    
+    try {
+        if (selectedDataSource) { // Editing
+          await setDoc(doc(firestore, "dataSources", selectedDataSource.id), values);
+          toast({
+            title: "Fuente de Datos Actualizada",
+            description: `Se han guardado los cambios en '${values.name}'.`,
+          });
+          setIsManageDialogOpen(false);
+          setSelectedDataSource(null);
+        } else { // Adding
+          const newId = crypto.randomUUID();
+          await setDoc(doc(firestore, "dataSources", newId), values);
+          await setDoc(doc(collection(firestore, `dataSource_queries_${newId}`), '_init'), { initialized: true });
+
+          toast({
+            title: "Conexión Exitosa",
+            description: `La fuente de datos '${values.name}' ha sido añadida.`,
+          });
+          setIsAddDialogOpen(false);
+        }
+        form.reset();
+    } catch (error) {
+        console.error("Error submitting data source:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo guardar la fuente de datos.' })
+    }
   }
   
   async function onAnalyzeSchemaSubmit(values: z.infer<typeof schemaAnalysisSchema>) {
@@ -325,8 +289,8 @@ export default function DataSourcesPage() {
             <FormLabel>Tipo de Base de Datos</FormLabel>
               <Select onValueChange={(value) => {
                 field.onChange(value);
-                const port = value === 'PostgreSQL' ? 5432 : value === 'MongoDB' ? 27017 : value === 'MariaDB' ? 3306 : 1521;
-                form.setValue('port', port);
+                const port = value === 'PostgreSQL' ? 5432 : value === 'MongoDB' ? 27017 : value === 'MariaDB' ? 3306 : value === 'MySQL' ? 3306 : 1521;
+                form.setValue('port', port, { shouldValidate: true });
               }} defaultValue={field.value}>
               <FormControl>
                 <SelectTrigger>
@@ -364,7 +328,7 @@ export default function DataSourcesPage() {
             <FormItem>
               <FormLabel>Puerto</FormLabel>
               <FormControl>
-                <Input type="number" placeholder={defaultPort?.toString() || "5432"} {...field} />
+                <Input type="number" placeholder={defaultPort?.toString() || ""} {...field} value={field.value || ''} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -428,15 +392,12 @@ export default function DataSourcesPage() {
     </>
   );
 
-
   return (
     <div className="container mx-auto p-4 sm:p-6 lg:p-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Fuentes de Datos</h1>
-          <p className="text-muted-foreground">
-            Gestione sus conexiones a bases de datos.
-          </p>
+          <p className="text-muted-foreground">Gestione sus conexiones a bases de datos.</p>
         </div>
         <Button onClick={() => openDialog('add')}>
           <PlusCircle className="mr-2 h-4 w-4" />
@@ -444,7 +405,6 @@ export default function DataSourcesPage() {
         </Button>
       </div>
       
-      {/* Add/Edit Dialog */}
       <Dialog open={isAddDialogOpen || isManageDialogOpen} onOpenChange={selectedDataSource ? setIsManageDialogOpen : setIsAddDialogOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
@@ -482,23 +442,15 @@ export default function DataSourcesPage() {
               <div className="flex-1">
                 <CardTitle className="line-clamp-1">{source.name}</CardTitle>
                 <Badge
-                  variant={
-                    source.status === 'Conectado' ? 'default' : 'destructive'
-                  }
-                  className={
-                    source.status === 'Conectado'
-                      ? 'bg-green-500/20 text-green-700 border-green-500/30 dark:text-green-400'
-                      : 'bg-red-500/20 text-red-700 border-red-500/30 dark:text-red-400'
-                  }
+                  variant={source.status === 'Conectado' ? 'default' : 'destructive'}
+                  className={source.status === 'Conectado' ? 'bg-green-500/20 text-green-700 border-green-500/30 dark:text-green-400' : 'bg-red-500/20 text-red-700 border-red-500/30 dark:text-red-400'}
                 >
                   {source.status}
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="flex-grow">
-              <p className="text-sm text-muted-foreground line-clamp-2">
-                {source.description}
-              </p>
+              <p className="text-sm text-muted-foreground line-clamp-2">{source.description}</p>
             </CardContent>
             <CardFooter className="flex flex-col gap-2 items-stretch">
                 <Button variant="outline" onClick={() => openDialog('analyze', source)}>
@@ -517,9 +469,7 @@ export default function DataSourcesPage() {
           <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>Analizar Esquema de {selectedDataSource?.name}</DialogTitle>
-              <DialogDescription>
-                Pegue aquí el esquema de su base de datos (por ejemplo, el script DDL) para que la IA pueda entenderlo y describirlo.
-              </DialogDescription>
+              <DialogDescription>Pegue aquí el esquema de su base de datos para que la IA lo entienda.</DialogDescription>
             </DialogHeader>
             <Form {...analysisForm}>
               <form onSubmit={analysisForm.handleSubmit(onAnalyzeSchemaSubmit)} className="space-y-4 py-4">
@@ -542,11 +492,8 @@ export default function DataSourcesPage() {
                 />
                 <DialogFooter>
                   <Button type="submit" disabled={isAnalyzing}>
-                    {isAnalyzing ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <ScanSearch className="mr-2 h-4 w-4" />
-                    )}
+                    {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <ScanSearch className="mr-2 h-4 w-4" />
                     Analizar con IA
                   </Button>
                 </DialogFooter>
@@ -574,7 +521,7 @@ export default function DataSourcesPage() {
                 <AlertDialogHeader>
                 <AlertDialogTitle>¿Está seguro que desea eliminar?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    Esta acción es permanente y no se puede deshacer. Se eliminará la fuente de datos <strong>'{selectedDataSource?.name}'</strong>.
+                    Esta acción es permanente. Se eliminará la fuente de datos <strong>'{selectedDataSource?.name}'</strong>.
                 </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

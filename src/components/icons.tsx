@@ -39,3 +39,14 @@ export function OracleIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
     );
 }
+
+export function MySqlIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 12c-3.333-1-5-3-5-5a5 5 0 1 1 10 0c0 2-1.667 4-5 5"/>
+      <path d="M12 12v4c0 2.21-2.24 4-5 4s-5-1.79-5-4"/>
+      <path d="M12 12v4c0 2.21 2.24 4 5 4s5-1.79 5-4"/>
+      <ellipse cx="12" cy="5" rx="5" ry="2"/>
+    </svg>
+  );
+}

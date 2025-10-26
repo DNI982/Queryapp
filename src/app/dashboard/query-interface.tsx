@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -40,6 +40,8 @@ import { Download, Loader2, Sparkles, Table as TableIcon } from 'lucide-react';
 import { generateSQL } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryHistory } from '@/hooks/use-query-history';
+import { useFirestore } from '@/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 const formSchema = z.object({
   naturalLanguageQuery: z.string().min(10, {
@@ -48,71 +50,15 @@ const formSchema = z.object({
   dataSource: z.string().min(1, { message: "Debe seleccionar una fuente de datos."})
 });
 
-const mockDataSources = {
-    'sales-db': {
-        name: 'Sales DB (PostgreSQL)',
-        type: 'PostgreSQL',
-        schema: `
-CREATE TABLE customers (
-  id INT PRIMARY KEY,
-  first_name VARCHAR(50),
-  last_name VARCHAR(50),
-  email VARCHAR(100),
-  registration_date DATE,
-  city VARCHAR(50)
-);
-
-CREATE TABLE products (
-  id INT PRIMARY KEY,
-  name VARCHAR(100),
-  category VARCHAR(50),
-  price DECIMAL(10, 2)
-);
-
-CREATE TABLE sales (
-  id INT PRIMARY KEY,
-  customer_id INT,
-  product_id INT,
-  sale_date TIMESTAMP,
-  quantity INT,
-  total_amount DECIMAL(10, 2),
-  FOREIGN KEY (customer_id) REFERENCES customers(id),
-  FOREIGN KEY (product_id) REFERENCES products(id)
-);`
-    },
-    'logs-db': {
-        name: 'Logs DB (MongoDB)',
-        type: 'MongoDB',
-        schema: `
-// collections: app_logs
-{
-  _id: ObjectId,
-  level: String, // e.g., 'info', 'warn', 'error'
-  message: String,
-  timestamp: Date,
-  service: String // e.g., 'auth-service', 'payment-service'
-}
-`
-    }
-};
-
-const mockQueryResultForSales = [
-    { "id": 1, "first_name": "Juan", "last_name": "Perez", "city": "Nueva York" },
-    { "id": 2, "first_name": "Maria", "last_name": "Gonzalez", "city": "Nueva York" },
-];
-
-const mockQueryResultForProducts = [
-    { "category": "Electrónicos", "total_sales": 12500.50 },
-    { "category": "Libros", "total_sales": 4200.00 },
-];
-
 export default function QueryInterface() {
   const [generatedSql, setGeneratedSql] = useState<string | null>(null);
   const [queryResult, setQueryResult] = useState<any[] | null>(null);
   const [isLoadingSql, setIsLoadingSql] = useState(false);
   const [isLoadingResult, setIsLoadingResult] = useState(false);
+  const [dataSources, setDataSources] = useState<any>({});
   const { toast } = useToast();
   const { addQueryToHistory } = useQueryHistory();
+  const firestore = useFirestore();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -122,13 +68,33 @@ export default function QueryInterface() {
     },
   });
 
+  useEffect(() => {
+    if (firestore) {
+      const fetchData = async () => {
+        const querySnapshot = await getDocs(collection(firestore, "dataSources"));
+        const sources: any = {};
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            sources[doc.id] = {
+                name: `${data.name} (${data.type})`,
+                type: data.type,
+                // Assuming schema is stored elsewhere or not needed for this component's initial display
+                schema: `Traer el esquema para ${data.name} (${data.type})` 
+            };
+        });
+        setDataSources(sources);
+      };
+      fetchData();
+    }
+  }, [firestore]);
+
   async function onSqlGenerate(values: z.infer<typeof formSchema>) {
     setIsLoadingSql(true);
     setGeneratedSql(null);
     setQueryResult(null);
 
-    const selectedDataSourceKey = values.dataSource as keyof typeof mockDataSources;
-    const selectedDataSource = mockDataSources[selectedDataSourceKey];
+    const selectedDataSourceKey = values.dataSource as keyof typeof dataSources;
+    const selectedDataSource = dataSources[selectedDataSourceKey];
 
     const result = await generateSQL({
         naturalLanguageQuery: values.naturalLanguageQuery,
@@ -159,18 +125,9 @@ export default function QueryInterface() {
 
   function onRunQuery() {
     setIsLoadingResult(true);
-    // Simulating a real API call
+    // This is a mock implementation. In a real scenario, you would execute the SQL query.
     setTimeout(() => {
-      // In a real application, you would execute the `generatedSql` query
-      // against the selected database and get the results.
-      // Here, we'll return mock data based on the query for demonstration.
-      let resultData;
-      if (form.getValues('naturalLanguageQuery').toLowerCase().includes('cliente')) {
-        resultData = mockQueryResultForSales;
-      } else {
-        resultData = mockQueryResultForProducts;
-      }
-      
+      let resultData = [{"status": "ejecución de consulta simulada", "resultado": "éxito"}];
       setQueryResult(resultData);
       setIsLoadingResult(false);
       toast({
@@ -198,7 +155,7 @@ export default function QueryInterface() {
     if (!queryResult) return;
     const doc = new jsPDF();
     const tableHead = [Object.keys(queryResult[0])];
-    const tableBody = queryResult.map(row => Object.values(row).map(String)); // Ensure all data is string
+    const tableBody = queryResult.map(row => Object.values(row).map(String));
     
     autoTable(doc, {
         head: tableHead,
@@ -234,8 +191,8 @@ export default function QueryInterface() {
                                 </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
-                                    {Object.entries(mockDataSources).map(([key, source]) => (
-                                        <SelectItem key={key} value={key}>{source.name}</SelectItem>
+                                    {Object.entries(dataSources).map(([key, source]) => (
+                                        <SelectItem key={key} value={key}>{(source as any).name}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>

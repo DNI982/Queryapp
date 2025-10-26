@@ -1,0 +1,38 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to check for admin role
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Rule for users collection
+    match /users/{userId} {
+      allow read, update: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null;
+      allow read, write: if isAdmin();
+    }
+    
+    // Rule for pendingUsers collection
+    match /pendingUsers/{userId} {
+      allow create: if request.auth != null;
+      allow read, delete: if isAdmin();
+    }
+
+    // Rule for dataSources collection
+    match /dataSources/{dataSourceId} {
+        allow read, write, delete: if isAdmin();
+    }
+
+    // This rule matches any other collection at the root level.
+    // It must come AFTER the more specific rules above.
+    match /{otherCollections}/{docId} {
+      // We allow access only if the user is an admin AND the collection name
+      // starts with 'dataSource_queries_'
+      allow read, write, delete: if isAdmin() && otherCollections.matches('dataSource_queries_.*');
+    }
+  }
+}
