@@ -11,16 +11,19 @@ interface GenerateSQLParams {
     databaseType: string;
 }
 
-// Initialize Firebase Admin SDK
-// This is necessary for server-side actions to securely access Firestore.
-if (!getApps().length) {
-    try {
-        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY!);
-        initializeApp({
-            credential: cert(serviceAccount)
-        });
-    } catch (e) {
-        console.error("Failed to initialize Firebase Admin SDK:", e);
+// Helper function to initialize Firebase Admin SDK
+function initializeFirebaseAdmin() {
+    if (!getApps().length) {
+        try {
+            const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY!);
+            initializeApp({
+                credential: cert(serviceAccount)
+            });
+        } catch (e) {
+            console.error("Failed to initialize Firebase Admin SDK:", e);
+            // Propagate a more user-friendly error or handle it as needed
+            throw new Error("La configuración del servicio de Firebase es incorrecta o no está disponible.");
+        }
     }
 }
 
@@ -43,6 +46,7 @@ export async function generateSQL({ naturalLanguageQuery, databaseSchema, databa
 
 export async function executeQuery({ query, dataSourceId }: { query: string; dataSourceId: string; }): Promise<{ data?: any[]; error?: string; }> {
     try {
+        initializeFirebaseAdmin(); // Ensure Firebase Admin is initialized
         const db = getFirestore();
         const dataSourceRef = db.collection('dataSources').doc(dataSourceId);
         const doc = await dataSourceRef.get();
