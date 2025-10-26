@@ -15,8 +15,16 @@ import {
   FormControl,
   FormField,
   FormItem,
+  FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -36,7 +44,56 @@ const formSchema = z.object({
   naturalLanguageQuery: z.string().min(10, {
     message: 'La consulta debe tener al menos 10 caracteres.',
   }),
+  dataSource: z.string().min(1, { message: "Debe seleccionar una fuente de datos."})
 });
+
+const mockDataSources = {
+    'sales-db': {
+        name: 'Sales DB (PostgreSQL)',
+        type: 'PostgreSQL',
+        schema: `
+CREATE TABLE customers (
+  id INT PRIMARY KEY,
+  first_name VARCHAR(50),
+  last_name VARCHAR(50),
+  email VARCHAR(100),
+  registration_date DATE
+);
+
+CREATE TABLE products (
+  id INT PRIMARY KEY,
+  name VARCHAR(100),
+  category VARCHAR(50),
+  price DECIMAL(10, 2)
+);
+
+CREATE TABLE sales (
+  id INT PRIMARY KEY,
+  customer_id INT,
+  product_id INT,
+  sale_date TIMESTAMP,
+  quantity INT,
+  total_amount DECIMAL(10, 2),
+  FOREIGN KEY (customer_id) REFERENCES customers(id),
+  FOREIGN KEY (product_id) REFERENCES products(id)
+);`
+    },
+    'logs-db': {
+        name: 'Logs DB (MongoDB)',
+        type: 'MongoDB',
+        schema: `
+// collections: app_logs
+{
+  _id: ObjectId,
+  level: String, // e.g., 'info', 'warn', 'error'
+  message: String,
+  timestamp: Date,
+  service: String // e.g., 'auth-service', 'payment-service'
+}
+`
+    }
+};
+
 
 const mockData = [
     { id: 1, product: 'Laptop Pro', sales: 150, month: 'Enero' },
@@ -58,6 +115,7 @@ export default function QueryInterface() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       naturalLanguageQuery: '',
+      dataSource: ''
     },
   });
 
@@ -65,7 +123,16 @@ export default function QueryInterface() {
     setIsLoadingSql(true);
     setGeneratedSql(null);
     setQueryResult(null);
-    const result = await generateSQL(values.naturalLanguageQuery);
+
+    const selectedDataSourceKey = values.dataSource as keyof typeof mockDataSources;
+    const selectedDataSource = mockDataSources[selectedDataSourceKey];
+
+    const result = await generateSQL({
+        naturalLanguageQuery: values.naturalLanguageQuery,
+        databaseSchema: selectedDataSource.schema,
+        databaseType: selectedDataSource.type,
+    });
+
     if (result.error) {
       toast({
         variant: 'destructive',
@@ -118,22 +185,48 @@ export default function QueryInterface() {
         <CardContent className="p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSqlGenerate)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="naturalLanguageQuery"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormControl>
-                      <Textarea
-                        placeholder="p. ej., 'muéstrame las ventas de los últimos tres meses, ordenadas por precio de mayor a menor'"
-                        className="min-h-[100px] resize-none text-base"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid gap-4 md:grid-cols-3">
+                 <FormField
+                    control={form.control}
+                    name="dataSource"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Fuente de Datos</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Seleccione una fuente..." />
+                                </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    {Object.entries(mockDataSources).map(([key, source]) => (
+                                        <SelectItem key={key} value={key}>{source.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                  control={form.control}
+                  name="naturalLanguageQuery"
+                  render={({ field }) => (
+                    <FormItem className='md:col-span-2'>
+                        <FormLabel>Consulta en Lenguaje Natural</FormLabel>
+                        <FormControl>
+                        <Textarea
+                            placeholder="p. ej., 'muéstrame las ventas de los últimos tres meses, ordenadas por precio de mayor a menor'"
+                            className="min-h-[100px] resize-none text-base"
+                            {...field}
+                        />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <Button type="submit" disabled={isLoadingSql}>
                 {isLoadingSql ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

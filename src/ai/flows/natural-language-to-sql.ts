@@ -20,6 +20,7 @@ const NaturalLanguageToSQLInputSchema = z.object({
     .describe(
       'The schema of the database to query, which could be DDL or a description.'
     ),
+  databaseType: z.string().describe('The type of the database (e.g., PostgreSQL, MongoDB, MariaDB, Oracle).'),
 });
 export type NaturalLanguageToSQLInput = z.infer<
   typeof NaturalLanguageToSQLInputSchema
@@ -42,7 +43,7 @@ const prompt = ai.definePrompt({
   name: 'naturalLanguageToSQLPrompt',
   input: {schema: NaturalLanguageToSQLInputSchema},
   output: {schema: NaturalLanguageToSQLOutputSchema},
-  prompt: `You are a SQL expert. Convert the given natural language query into a SQL query that can be executed against the provided database schema.\n\nNatural Language Query: {{{naturalLanguageQuery}}}\n\nDatabase Schema: {{{databaseSchema}}}\n\nSQL Query:`, 
+  prompt: `You are a SQL expert. Convert the given natural language query into a SQL query that can be executed against the provided database schema for a {{{databaseType}}} database.\n\nNatural Language Query: {{{naturalLanguageQuery}}}\n\nDatabase Schema: {{{databaseSchema}}}\n\nSQL Query:`, 
 });
 
 const naturalLanguageToSQLFlow = ai.defineFlow(

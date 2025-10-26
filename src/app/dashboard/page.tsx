@@ -6,7 +6,7 @@ export default function QueriesPage() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Consultas</h1>
         <p className="text-muted-foreground">
-          Convierta sus preguntas en lenguaje natural a consultas SQL con IA.
+          Seleccione una fuente de datos y convierta sus preguntas en lenguaje natural a consultas SQL con IA.
         </p>
       </div>
       <QueryInterface />
