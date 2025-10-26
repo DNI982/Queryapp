@@ -235,6 +235,7 @@ export default function QueryInterface() {
       <AnimatePresence>
         {isLoadingSql && (
              <motion.div
+                key="sql-loading"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
@@ -246,6 +247,7 @@ export default function QueryInterface() {
         )}
         {generatedSql && (
           <motion.div
+            key="sql-generated"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="space-y-4"
@@ -273,6 +275,7 @@ export default function QueryInterface() {
        <AnimatePresence>
         {isLoadingResult && (
              <motion.div
+                key="result-loading"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
@@ -284,6 +287,7 @@ export default function QueryInterface() {
         )}
         {queryResult && (
           <motion.div
+            key="result-generated"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
