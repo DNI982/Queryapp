@@ -5,6 +5,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { AnimatePresence, motion } from 'framer-motion';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -82,6 +85,32 @@ export default function QueryInterface() {
       setIsLoadingResult(false);
     }, 1500);
   }
+
+  const handleDownloadExcel = () => {
+    if (!queryResult) return;
+    const worksheet = XLSX.utils.json_to_sheet(queryResult);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Resultados');
+    XLSX.writeFile(workbook, 'resultados_consulta.xlsx');
+  };
+
+  const handleDownloadPdf = () => {
+    if (!queryResult) return;
+    const doc = new jsPDF();
+    const tableHead = [Object.keys(queryResult[0])];
+    const tableBody = queryResult.map(row => Object.values(row));
+    
+    autoTable(doc, {
+        head: tableHead,
+        body: tableBody,
+        didDrawPage: (data) => {
+            doc.text('Resultados de la Consulta', data.settings.margin.left, 15);
+        }
+    });
+
+    doc.save('resultados_consulta.pdf');
+  };
+
 
   return (
     <div className="space-y-8">
@@ -177,8 +206,8 @@ export default function QueryInterface() {
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Resultados de la Consulta</CardTitle>
                 <div className="space-x-2">
-                    <Button variant="outline" size="sm"><Download className="mr-2 h-4 w-4"/> Excel</Button>
-                    <Button variant="outline" size="sm"><Download className="mr-2 h-4 w-4"/> PDF</Button>
+                    <Button variant="outline" size="sm" onClick={handleDownloadExcel}><Download className="mr-2 h-4 w-4"/> Excel</Button>
+                    <Button variant="outline" size="sm" onClick={handleDownloadPdf}><Download className="mr-2 h-4 w-4"/> PDF</Button>
                 </div>
               </CardHeader>
               <CardContent>
