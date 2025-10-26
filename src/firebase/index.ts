@@ -1,7 +1,3 @@
-// This file is the "barrel" for all Firebase-related functionality.
-// It exports a set of hooks and providers that can be used to access
-// Firebase services in a React-friendly way.
-
 'use client';
 import { getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
@@ -12,7 +8,7 @@ import { firebaseConfig } from './config';
 // Re-export the providers and hooks from the other files.
 export { FirebaseClientProvider } from './client-provider';
 export { FirebaseProvider, useFirebase, useFirebaseApp, useAuth, useFirestore } from './provider';
-export { useUser } from './auth/use-user';
+export { useUser, useUserRole } from './auth/use-user';
 
 
 // A singleton instance of the Firebase app.

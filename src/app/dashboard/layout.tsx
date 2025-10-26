@@ -25,18 +25,16 @@ import {
   LogOut,
   Palette,
   Loader2,
+  Users,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Logo } from '@/components/logo';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { QueryHistoryProvider } from '@/hooks/use-query-history';
-import { useUser } from '@/firebase';
+import { useUser, useUserRole } from '@/firebase';
 import { useAuthActions } from '@/firebase/client-provider';
 import { useEffect } from 'react';
-
-const userAvatar = PlaceHolderImages.find((img) => img.id === 'user-avatar');
 
 export default function DashboardLayout({
   children,
@@ -45,17 +43,21 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loading } = useUser();
+  const { user, loading: userLoading } = useUser();
+  const { role, loading: roleLoading } = useUserRole();
   const { signOut } = useAuthActions();
   
-  const isActive = (path: string) => pathname === path || (path.startsWith(pathname) && pathname !== '/dashboard');
+  const isActive = (path: string) => pathname.startsWith(path) && (pathname === path || path !== '/dashboard');
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!userLoading && !user) {
       router.push('/');
+    } else if (!roleLoading && user) {
+        if (role === 'pending-approval') {
+            router.push('/pending-approval');
+        }
     }
-  }, [user, loading, router]);
-
+  }, [user, userLoading, role, roleLoading, router]);
 
   const menuItems = [
     { href: '/dashboard', label: 'Consultas', icon: DatabaseZap },
@@ -63,13 +65,17 @@ export default function DashboardLayout({
     { href: '/dashboard/history', label: 'Historial', icon: History },
     { href: '/dashboard/analytics', label: 'Analíticas', icon: BarChart2 },
   ];
+  
+  if (role === 'super-admin') {
+      menuItems.push({ href: '/dashboard/admin', label: 'Administración', icon: Users });
+  }
 
   const handleSignOut = async () => {
     await signOut();
     router.push('/');
   }
   
-  if (loading || !user) {
+  if (userLoading || roleLoading || !user || !role || role === 'pending-approval') {
     return (
         <div className="flex h-screen items-center justify-center">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />

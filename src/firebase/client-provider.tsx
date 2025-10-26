@@ -1,7 +1,7 @@
 'use client';
 import { type PropsWithChildren, useState, useEffect } from 'react';
 import { initializeFirebase } from './index';
-import { FirebaseProvider, useAuth } from './provider';
+import { FirebaseProvider, useAuth, useFirestore } from './provider';
 import type { FirebaseApp } from 'firebase/app';
 import type { Auth } from 'firebase/auth';
 import type { Firestore } from 'firebase/firestore';
