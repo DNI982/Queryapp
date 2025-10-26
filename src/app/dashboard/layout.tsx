@@ -152,7 +152,7 @@ export default function DashboardLayout({
         <SidebarInset>
           <header className="flex h-14 items-center gap-4 border-b bg-card px-4 md:hidden">
             <SidebarTrigger />
-            <h1 className="text-lg font-semibold">DataWise AI</h1>
+            <h1 className="text-lg font-semibold">nQuery</h1>
           </header>
           <main className="flex-1 overflow-auto bg-muted/30">{children}</main>
         </SidebarInset>
