@@ -55,6 +55,7 @@ interface DataSource {
     name: string;
     type: string;
     schema: string;
+    [key: string]: any; // Allow other properties
 }
 
 export default function QueryInterface() {
@@ -85,8 +86,8 @@ export default function QueryInterface() {
             const data = doc.data() as DocumentData;
             sources.push({
                 id: doc.id,
+                ...data,
                 name: `${data.name} (${data.type})`,
-                type: data.type,
                 schema: data.schema || ''
             });
         });
@@ -156,7 +157,15 @@ export default function QueryInterface() {
     setQueryResult(null);
 
     const dataSourceId = form.getValues('dataSource');
-    const result = await executeQuery({ query: generatedSql, dataSourceId });
+    const selectedDataSource = dataSources.find(ds => ds.id === dataSourceId);
+
+    if (!selectedDataSource) {
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo encontrar la fuente de datos seleccionada.' });
+        setIsLoadingResult(false);
+        return;
+    }
+
+    const result = await executeQuery({ query: generatedSql, dataSource: selectedDataSource });
 
     if (result.error) {
         toast({
