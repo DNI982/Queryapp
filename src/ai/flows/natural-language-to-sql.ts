@@ -20,14 +20,14 @@ const NaturalLanguageToSQLInputSchema = z.object({
     .describe(
       'The schema of the database to query, which could be DDL or a description.'
     ),
-  databaseType: z.string().describe('The type of the database (e.g., PostgreSQL, MongoDB, MariaDB, Oracle).'),
+  databaseType: z.string().describe('The type of the database (e.g., PostgreSQL, MongoDB Shell Command, MariaDB, Oracle).'),
 });
 export type NaturalLanguageToSQLInput = z.infer<
   typeof NaturalLanguageToSQLInputSchema
 >;
 
 const NaturalLanguageToSQLOutputSchema = z.object({
-  sqlQuery: z.string().describe('The SQL query generated from the natural language query.'),
+  sqlQuery: z.string().describe('The database query generated from the natural language query. This should be a single, executable query string. For MongoDB, this should be a valid MongoDB Shell Command.'),
 });
 export type NaturalLanguageToSQLOutput = z.infer<
   typeof NaturalLanguageToSQLOutputSchema
@@ -43,7 +43,20 @@ const prompt = ai.definePrompt({
   name: 'naturalLanguageToSQLPrompt',
   input: {schema: NaturalLanguageToSQLInputSchema},
   output: {schema: NaturalLanguageToSQLOutputSchema},
-  prompt: `You are a SQL expert. Convert the given natural language query into a SQL query that can be executed against the provided database schema for a {{{databaseType}}} database.\n\nNatural Language Query: {{{naturalLanguageQuery}}}\n\nDatabase Schema: {{{databaseSchema}}}\n\nSQL Query:`, 
+  prompt: `You are a database query expert. Convert the given natural language query into a single, executable query that can be executed against the provided database schema for a {{{databaseType}}} database.
+
+  IMPORTANT:
+  - Your output must be ONLY the raw query string. Do not wrap it in markdown, comments, or any other formatting.
+  - If the database type is 'MongoDB Shell Command', you must generate a command like 'db.collection.find(...).toArray()'. The command must be a single line of code.
+
+  Natural Language Query: {{{naturalLanguageQuery}}}
+  
+  Database Schema: 
+  \`\`\`
+  {{{databaseSchema}}}
+  \`\`\`
+  
+  Query:`, 
 });
 
 const naturalLanguageToSQLFlow = ai.defineFlow(
@@ -54,6 +67,15 @@ const naturalLanguageToSQLFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await prompt(input);
-    return output!;
+    // Clean up the output to ensure it's just the raw query
+    let query = output!.sqlQuery.trim();
+    if (query.startsWith('```') && query.endsWith('```')) {
+      query = query.substring(3, query.length - 3).trim();
+      const firstLineBreak = query.indexOf('\n');
+      if (firstLineBreak !== -1) {
+        query = query.substring(firstLineBreak + 1).trim();
+      }
+    }
+    return { sqlQuery: query };
   }
 );

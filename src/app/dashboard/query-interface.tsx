@@ -37,7 +37,7 @@ import {
 } from '@/components/ui/table';
 import { CodeBlock } from '@/components/code-block';
 import { Download, Loader2, Sparkles, Table as TableIcon } from 'lucide-react';
-import { generateSQL } from './actions';
+import { generateSQL, executeQuery } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryHistory } from '@/hooks/use-query-history';
 import { useFirestore } from '@/firebase';
@@ -144,34 +144,45 @@ export default function QueryInterface() {
       setGeneratedSql(result.sqlQuery!);
       toast({
         title: 'SQL Generado',
-        description: 'La consulta SQL ha sido generada con éxito.',
+        description: 'La consulta ha sido generada con éxito.',
       });
     }
     setIsLoadingSql(false);
   }
 
-  function onRunQuery() {
+  async function onRunQuery() {
+    if (!generatedSql) return;
     setIsLoadingResult(true);
-    // This is a mock implementation. In a real scenario, you would execute the SQL query.
-    // The main purpose is to generate the SQL query for the user to use in their own database client.
-    setTimeout(() => {
-      let resultData = [
-        {"columna_1": "dato_simulado_a", "columna_2": 123},
-        {"columna_1": "dato_simulado_b", "columna_2": 456},
-        {"columna_1": "NOTA", "columna_2": "Esta es una simulación. Copie el SQL y ejecútelo en su cliente de base de datos."}
-      ];
-      setQueryResult(resultData);
-      setIsLoadingResult(false);
-      toast({
-        title: 'Ejecución Simulada',
-        description: `Se han mostrado resultados de ejemplo.`,
-      });
-      addQueryToHistory({
-        naturalQuery: form.getValues('naturalLanguageQuery'),
-        sqlQuery: generatedSql!,
-        status: 'Éxito'
-      });
-    }, 1500);
+    setQueryResult(null);
+
+    const dataSourceId = form.getValues('dataSource');
+    const result = await executeQuery({ query: generatedSql, dataSourceId });
+
+    if (result.error) {
+        toast({
+            variant: 'destructive',
+            title: 'Error al ejecutar la consulta',
+            description: result.error,
+        });
+        addQueryToHistory({
+            naturalQuery: form.getValues('naturalLanguageQuery'),
+            sqlQuery: generatedSql,
+            status: 'Fallido'
+        });
+        setQueryResult([{ error: result.error }]);
+    } else {
+        setQueryResult(result.data!);
+        toast({
+            title: 'Consulta Ejecutada',
+            description: `Se han obtenido los resultados de la base de datos.`,
+        });
+        addQueryToHistory({
+            naturalQuery: form.getValues('naturalLanguageQuery'),
+            sqlQuery: generatedSql!,
+            status: 'Éxito'
+        });
+    }
+    setIsLoadingResult(false);
   }
 
   const handleDownloadExcel = () => {
@@ -184,7 +195,7 @@ export default function QueryInterface() {
   };
 
   const handleDownloadPdf = () => {
-    if (!queryResult) return;
+    if (!queryResult || queryResult.length === 0) return;
     const doc = new jsPDF();
     const tableHead = [Object.keys(queryResult[0])];
     const tableBody = queryResult.map(row => Object.values(row).map(String));
@@ -201,7 +212,8 @@ export default function QueryInterface() {
     toast({ title: 'Descarga Iniciada', description: 'El archivo PDF se está descargando.'});
   };
 
-  const tableHeaders = queryResult ? Object.keys(queryResult[0] || {}) : [];
+  const tableHeaders = queryResult && queryResult.length > 0 ? Object.keys(queryResult[0] || {}) : [];
+  const canDownload = queryResult && queryResult.length > 0 && !queryResult[0]?.error;
 
   return (
     <div className="space-y-8">
@@ -274,7 +286,7 @@ export default function QueryInterface() {
                 className="flex items-center justify-center p-8 text-muted-foreground"
             >
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Generando SQL con IA...
+                Generando consulta con IA...
             </motion.div>
         )}
         {generatedSql && (
@@ -286,7 +298,7 @@ export default function QueryInterface() {
           >
             <Card>
               <CardHeader>
-                <CardTitle>SQL Generado</CardTitle>
+                <CardTitle>Consulta Generada</CardTitle>
               </CardHeader>
               <CardContent>
                 <CodeBlock code={generatedSql} />
@@ -296,7 +308,7 @@ export default function QueryInterface() {
                   ) : (
                     <TableIcon className="mr-2 h-4 w-4" />
                   )}
-                  Ejecutar Consulta
+                  Ejecutar Consulta Real
                 </Button>
               </CardContent>
             </Card>
@@ -325,31 +337,42 @@ export default function QueryInterface() {
           >
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Resultados de la Consulta (Simulación)</CardTitle>
-                <div className="space-x-2">
-                    <Button variant="outline" size="sm" onClick={handleDownloadExcel}><Download className="mr-2 h-4 w-4"/> Excel</Button>
-                    <Button variant="outline" size="sm" onClick={handleDownloadPdf}><Download className="mr-2 h-4 w-4"/> PDF</Button>
-                </div>
+                <CardTitle>Resultados de la Consulta</CardTitle>
+                {canDownload && (
+                    <div className="space-x-2">
+                        <Button variant="outline" size="sm" onClick={handleDownloadExcel}><Download className="mr-2 h-4 w-4"/> Excel</Button>
+                        <Button variant="outline" size="sm" onClick={handleDownloadPdf}><Download className="mr-2 h-4 w-4"/> PDF</Button>
+                    </div>
+                )}
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      {tableHeaders.map(header => (
-                        <TableHead key={header} className="capitalize">{header.replace(/_/g, ' ')}</TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {queryResult.map((row, rowIndex) => (
-                      <TableRow key={rowIndex}>
+                {queryResult[0]?.error ? (
+                    <div className='text-destructive-foreground bg-destructive/80 p-4 rounded-md font-code text-sm'>
+                        <p className='font-bold mb-2'>Error en la base de datos:</p>
+                        <p>{queryResult[0].error}</p>
+                    </div>
+                ) : (
+                <div className="max-h-96 overflow-y-auto">
+                    <Table>
+                    <TableHeader>
+                        <TableRow>
                         {tableHeaders.map(header => (
-                          <TableCell key={`${rowIndex}-${header}`}>{String(row[header])}</TableCell>
+                            <TableHead key={header} className="capitalize sticky top-0 bg-card">{header.replace(/_/g, ' ')}</TableHead>
                         ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {queryResult.map((row, rowIndex) => (
+                        <TableRow key={rowIndex}>
+                            {tableHeaders.map(header => (
+                            <TableCell key={`${rowIndex}-${header}`}>{String(row[header])}</TableCell>
+                            ))}
+                        </TableRow>
+                        ))}
+                    </TableBody>
+                    </Table>
+                </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>
