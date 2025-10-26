@@ -12,8 +12,6 @@ import { firebaseConfig } from './config';
 // Re-export the providers and hooks from the other files.
 export { FirebaseClientProvider } from './client-provider';
 export { FirebaseProvider, useFirebase, useFirebaseApp, useAuth, useFirestore } from './provider';
-export { useCollection } from './firestore/use-collection';
-export { useDoc } from './firestore/use-doc';
 export { useUser } from './auth/use-user';
 
 

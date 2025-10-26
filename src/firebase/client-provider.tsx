@@ -1,11 +1,11 @@
 'use client';
 import { type PropsWithChildren, useState, useEffect } from 'react';
 import { initializeFirebase } from './index';
-import { FirebaseProvider } from './provider';
+import { FirebaseProvider, useAuth } from './provider';
 import type { FirebaseApp } from 'firebase/app';
 import type { Auth } from 'firebase/auth';
 import type { Firestore } from 'firebase/firestore';
-import { useAuth as useFirebaseAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut as firebaseSignOut } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut as firebaseSignOut } from 'firebase/auth';
 
 interface FirebaseInstances {
   firebaseApp: FirebaseApp;
@@ -19,7 +19,7 @@ interface FirebaseInstances {
  * @returns An object with authentication functions.
  */
 export function useAuthActions() {
-    const auth = useFirebaseAuth();
+    const auth = useAuth();
     
     const signIn = (email: string, password: string) => {
         return signInWithEmailAndPassword(auth, email, password);
