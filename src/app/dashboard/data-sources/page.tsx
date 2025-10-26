@@ -38,7 +38,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { PlusCircle } from 'lucide-react';
+import { Loader2, PlusCircle, ScanSearch } from 'lucide-react';
 import {
   PostgreSqlIcon,
   MongoDbIcon,
@@ -47,6 +47,13 @@ import {
 } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { databaseSchemaUnderstanding } from '@/ai/flows/database-schema-understanding';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert';
 
 const iconMap = {
   PostgreSQL: PostgreSqlIcon,
@@ -107,9 +114,17 @@ const formSchema = z.object({
   database: z.string().min(1, 'El nombre de la base de datos es obligatorio.'),
 });
 
+const schemaAnalysisSchema = z.object({
+    schema: z.string().min(20, 'El esquema debe tener al menos 20 caracteres.'),
+});
+
 export default function DataSourcesPage() {
   const [dataSources, setDataSources] = useState<DataSource[]>(initialDataSources);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isAnalyzeDialogOpen, setIsAnalyzeDialogOpen] = useState(false);
+  const [selectedDataSourceForAnalysis, setSelectedDataSourceForAnalysis] = useState<DataSource | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -124,6 +139,13 @@ export default function DataSourcesPage() {
       database: ''
     },
   });
+  
+  const analysisForm = useForm<z.infer<typeof schemaAnalysisSchema>>({
+    resolver: zodResolver(schemaAnalysisSchema),
+    defaultValues: {
+      schema: '',
+    },
+  });
 
   const dbType = form.watch('type');
   const defaultPort = useMemo(() => {
@@ -136,9 +158,7 @@ export default function DataSourcesPage() {
     }
   }, [dbType]);
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    // In a real application, you would test the connection here.
-    // We will simulate a successful connection.
+  function onAddDataSourceSubmit(values: z.infer<typeof formSchema>) {
     const newDataSource: DataSource = {
       name: values.name,
       type: values.type as DataSourceType,
@@ -152,7 +172,36 @@ export default function DataSourcesPage() {
       description: `La fuente de datos '${values.name}' ha sido añadida.`,
     });
     form.reset();
-    setIsDialogOpen(false);
+    setIsAddDialogOpen(false);
+  }
+  
+  async function onAnalyzeSchemaSubmit(values: z.infer<typeof schemaAnalysisSchema>) {
+      if (!selectedDataSourceForAnalysis) return;
+      setIsAnalyzing(true);
+      setAnalysisResult(null);
+      try {
+          const result = await databaseSchemaUnderstanding({
+              databaseSchema: values.schema,
+              databaseType: selectedDataSourceForAnalysis.type,
+          });
+          setAnalysisResult(result.databaseSchemaDescription);
+      } catch (error) {
+          console.error("Schema analysis failed", error);
+          toast({
+              variant: 'destructive',
+              title: "Error en el Análisis",
+              description: "No se pudo analizar el esquema. Por favor, inténtelo de nuevo."
+          })
+      } finally {
+          setIsAnalyzing(false);
+      }
+  }
+
+  const openAnalyzeDialog = (dataSource: DataSource) => {
+    setSelectedDataSourceForAnalysis(dataSource);
+    analysisForm.reset();
+    setAnalysisResult(null);
+    setIsAnalyzeDialogOpen(true);
   }
 
   return (
@@ -164,7 +213,7 @@ export default function DataSourcesPage() {
             Gestione sus conexiones a bases de datos.
           </p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <PlusCircle className="mr-2 h-4 w-4" />
@@ -179,7 +228,7 @@ export default function DataSourcesPage() {
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 py-4 max-h-[70vh] overflow-y-auto pr-2">
+              <form onSubmit={form.handleSubmit(onAddDataSourceSubmit)} className="space-y-3 py-4 max-h-[70vh] overflow-y-auto pr-2">
                 <FormField
                   control={form.control}
                   name="name"
@@ -338,14 +387,74 @@ export default function DataSourcesPage() {
                 {source.description}
               </p>
             </CardContent>
-            <CardFooter>
-              <Button variant="outline" className="w-full">
+            <CardFooter className="flex flex-col gap-2 items-stretch">
+                <Button variant="outline" onClick={() => openAnalyzeDialog(source)}>
+                    <ScanSearch className="mr-2 h-4 w-4" />
+                    Analizar Esquema
+                </Button>
+              <Button variant="secondary" className="w-full">
                 Gestionar
               </Button>
             </CardFooter>
           </Card>
         ))}
       </div>
+      
+       <Dialog open={isAnalyzeDialogOpen} onOpenChange={setIsAnalyzeDialogOpen}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Analizar Esquema de {selectedDataSourceForAnalysis?.name}</DialogTitle>
+              <DialogDescription>
+                Pegue aquí el esquema de su base de datos (por ejemplo, el script DDL) para que la IA pueda entenderlo y describirlo.
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...analysisForm}>
+              <form onSubmit={analysisForm.handleSubmit(onAnalyzeSchemaSubmit)} className="space-y-4 py-4">
+                <FormField
+                  control={analysisForm.control}
+                  name="schema"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Esquema de la Base de Datos ({selectedDataSourceForAnalysis?.type})</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder={`-- Ejemplo para ${selectedDataSourceForAnalysis?.type}\nCREATE TABLE ...`}
+                          className="min-h-[200px] resize-y font-code text-xs"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter>
+                  <Button type="submit" disabled={isAnalyzing}>
+                    {isAnalyzing ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <ScanSearch className="mr-2 h-4 w-4" />
+                    )}
+                    Analizar con IA
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+            {isAnalyzing && (
+                 <div className="flex items-center justify-center p-8 text-muted-foreground">
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Analizando esquema...
+                </div>
+            )}
+            {analysisResult && (
+                <Alert>
+                    <AlertTitle>Análisis de la IA</AlertTitle>
+                    <AlertDescription className='whitespace-pre-wrap'>
+                        {analysisResult}
+                    </AlertDescription>
+                </Alert>
+            )}
+          </DialogContent>
+        </Dialog>
     </div>
   );
 }
