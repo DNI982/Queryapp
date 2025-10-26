@@ -62,6 +62,7 @@ import { databaseSchemaUnderstanding } from '@/ai/flows/database-schema-understa
 import { Textarea } from '@/components/ui/textarea';
 import { useFirestore } from '@/firebase';
 import { collection, doc, setDoc, onSnapshot, query } from 'firebase/firestore';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const iconMap = {
   PostgreSQL: PostgreSqlIcon,
@@ -80,22 +81,34 @@ interface DataSource {
   description: string;
   icon: (props: React.SVGProps<SVGSVGElement>) => JSX.Element;
   status: 'Conectado' | 'Desconectado';
+  connectionType: 'fields' | 'url';
   host?: string;
   port?: number;
   username?: string;
   database?: string;
+  connectionString?: string;
 }
 
-const formSchema = z.object({
-  name: z.string().min(3, 'El nombre debe tener al menos 3 caracteres.'),
-  type: z.enum(['PostgreSQL', 'MongoDB', 'MariaDB', 'Oracle', 'MySQL'], { required_error: 'Debe seleccionar un tipo de base de datos.' }),
-  description: z.string().optional(),
-  host: z.string().min(1, 'El host es obligatorio.'),
-  port: z.coerce.number().positive('El puerto debe ser un número positivo.'),
-  username: z.string().min(1, 'El usuario es obligatorio.'),
-  password: z.string(),
-  database: z.string().min(1, 'El nombre de la base de datos es obligatorio.'),
-});
+const formSchema = z.discriminatedUnion("connectionType", [
+  z.object({
+    connectionType: z.literal("fields"),
+    name: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
+    type: z.enum(['PostgreSQL', 'MongoDB', 'MariaDB', 'Oracle', 'MySQL'], { required_error: 'Debe seleccionar un tipo de base de datos.' }),
+    description: z.string().optional(),
+    host: z.string().min(1, "El host es obligatorio."),
+    port: z.coerce.number().positive("El puerto debe ser un número positivo."),
+    username: z.string().min(1, "El usuario es obligatorio."),
+    password: z.string(),
+    database: z.string().min(1, "El nombre de la base de datos es obligatorio."),
+  }),
+  z.object({
+    connectionType: z.literal("url"),
+    name: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
+    type: z.enum(['PostgreSQL', 'MongoDB', 'MariaDB', 'Oracle', 'MySQL'], { required_error: 'Debe seleccionar un tipo de base de datos.' }),
+    description: z.string().optional(),
+    connectionString: z.string().min(10, "La URL de conexión es obligatoria."),
+  }),
+]);
 
 const schemaAnalysisSchema = z.object({
     schema: z.string().min(20, 'El esquema debe tener al menos 20 caracteres.'),
@@ -112,6 +125,7 @@ export default function DataSourcesPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const { toast } = useToast();
   const firestore = useFirestore();
+  const [connectionTab, setConnectionTab] = useState("fields");
 
   useEffect(() => {
     if (!firestore) return;
@@ -135,12 +149,14 @@ export default function DataSourcesPage() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-        name: '',
-        description: '',
-        host: '',
-        username: '',
-        password: '',
-        database: ''
+      connectionType: "fields",
+      name: '',
+      description: '',
+      host: '',
+      username: '',
+      password: '',
+      database: '',
+      port: undefined,
     }
   });
   
@@ -164,14 +180,18 @@ export default function DataSourcesPage() {
   }, [dbType]);
 
   useEffect(() => {
-      if (selectedDataSource && isManageDialogOpen) {
-          form.reset({
-              ...selectedDataSource,
-              password: '',
-              port: selectedDataSource.port || undefined,
-          })
-      } else {
+    if (selectedDataSource && isManageDialogOpen) {
+        setConnectionTab(selectedDataSource.connectionType || 'fields');
         form.reset({
+            ...selectedDataSource,
+            password: '',
+            // @ts-ignore
+            port: selectedDataSource.port || undefined,
+        })
+    } else {
+        setConnectionTab('fields');
+        form.reset({
+            connectionType: "fields",
             name: '',
             type: undefined,
             description: '',
@@ -181,8 +201,8 @@ export default function DataSourcesPage() {
             password: '',
             database: ''
         })
-      }
-  }, [selectedDataSource, isManageDialogOpen, form])
+    }
+}, [selectedDataSource, isManageDialogOpen, form])
 
   async function onDataSourceSubmit(values: z.infer<typeof formSchema>) {
     if (!firestore) {
@@ -191,8 +211,10 @@ export default function DataSourcesPage() {
     }
     
     try {
+        let dataToSave: Omit<DataSource, 'id' | 'icon' | 'status'> = { ...values };
+
         if (selectedDataSource) { // Editing
-          await setDoc(doc(firestore, "dataSources", selectedDataSource.id), values);
+          await setDoc(doc(firestore, "dataSources", selectedDataSource.id), dataToSave);
           toast({
             title: "Fuente de Datos Actualizada",
             description: `Se han guardado los cambios en '${values.name}'.`,
@@ -201,7 +223,7 @@ export default function DataSourcesPage() {
           setSelectedDataSource(null);
         } else { // Adding
           const newId = crypto.randomUUID();
-          await setDoc(doc(firestore, "dataSources", newId), values);
+          await setDoc(doc(firestore, "dataSources", newId), dataToSave);
           await setDoc(doc(collection(firestore, `dataSource_queries_${newId}`), '_init'), { initialized: true });
 
           toast({
@@ -266,132 +288,6 @@ export default function DataSourcesPage() {
     }
   }
 
-  const sharedFormFields = (
-    <>
-      <FormField
-        control={form.control}
-        name="name"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Nombre de la Conexión</FormLabel>
-            <FormControl>
-              <Input placeholder="p. ej., DB de Producción" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="type"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Tipo de Base de Datos</FormLabel>
-              <Select onValueChange={(value) => {
-                field.onChange(value);
-                const port = value === 'PostgreSQL' ? 5432 : value === 'MongoDB' ? 27017 : value === 'MariaDB' ? 3306 : value === 'MySQL' ? 3306 : 1521;
-                form.setValue('port', port, { shouldValidate: true });
-              }} defaultValue={field.value}>
-              <FormControl>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione un tipo" />
-                </SelectTrigger>
-              </FormControl>
-              <SelectContent>
-                  {Object.keys(iconMap).map(type => (
-                    <SelectItem key={type} value={type}>{type}</SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <div className="grid grid-cols-2 gap-4">
-        <FormField
-          control={form.control}
-          name="host"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Host</FormLabel>
-              <FormControl>
-                <Input placeholder="localhost" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="port"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Puerto</FormLabel>
-              <FormControl>
-                <Input type="number" placeholder={defaultPort?.toString() || ""} {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
-      <FormField
-        control={form.control}
-        name="database"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Base de Datos</FormLabel>
-            <FormControl>
-              <Input placeholder="nombre_de_la_db" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="username"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Usuario</FormLabel>
-                <FormControl>
-                  <Input placeholder="admin" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Contraseña</FormLabel>
-                <FormControl>
-                  <Input type="password" placeholder="••••••••" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-      </div>
-        <FormField
-        control={form.control}
-        name="description"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Descripción <span className="text-muted-foreground">(Opcional)</span></FormLabel>
-            <FormControl>
-              <Input placeholder="p. ej. DB para analíticas" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    </>
-  );
-
   return (
     <div className="container mx-auto p-4 sm:p-6 lg:p-8">
       <div className="flex items-center justify-between mb-6">
@@ -410,12 +306,162 @@ export default function DataSourcesPage() {
             <DialogHeader>
               <DialogTitle>{selectedDataSource ? 'Gestionar' : 'Añadir Nueva'} Fuente de Datos</DialogTitle>
               <DialogDescription>
-                {selectedDataSource ? 'Edite los detalles de la conexión o elimine la fuente de datos.' : 'Complete los detalles para conectar una nueva base de datos.'}
+                {selectedDataSource ? 'Edite los detalles o elimine la conexión.' : 'Elija un método para conectar una nueva base de datos.'}
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onDataSourceSubmit)} className="space-y-3 py-4 max-h-[70vh] overflow-y-auto pr-2">
-                {sharedFormFields}
+                <div className="space-y-3 px-1">
+                    <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Nombre de la Conexión</FormLabel>
+                            <FormControl>
+                            <Input placeholder="p. ej., DB de Producción" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="type"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Tipo de Base de Datos</FormLabel>
+                            <Select onValueChange={(value) => {
+                                field.onChange(value);
+                                const port = value === 'PostgreSQL' ? 5432 : value === 'MongoDB' ? 27017 : value === 'MariaDB' ? 3306 : value === 'MySQL' ? 3306 : 1521;
+                                form.setValue('port', port, { shouldValidate: true });
+                            }} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger>
+                                <SelectValue placeholder="Seleccione un tipo" />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                {Object.keys(iconMap).map(type => (
+                                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                                ))}
+                            </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                </div>
+                
+                <Tabs value={connectionTab} onValueChange={(value) => {
+                  setConnectionTab(value);
+                  form.setValue('connectionType', value as 'fields' | 'url');
+                }} className="w-full pt-2">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="fields">Formulario</TabsTrigger>
+                    <TabsTrigger value="url">URL de Conexión</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="fields" className="space-y-3 pt-2">
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="host"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Host</FormLabel>
+                            <FormControl>
+                              <Input placeholder="localhost" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="port"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Puerto</FormLabel>
+                            <FormControl>
+                              <Input type="number" placeholder={defaultPort?.toString() || ""} {...field} value={field.value ?? ''} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                    <FormField
+                      control={form.control}
+                      name="database"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Base de Datos</FormLabel>
+                          <FormControl>
+                            <Input placeholder="nombre_de_la_db" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="username"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Usuario</FormLabel>
+                              <FormControl>
+                                <Input placeholder="admin" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="password"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Contraseña</FormLabel>
+                              <FormControl>
+                                <Input type="password" placeholder="••••••••" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="url" className="space-y-3 pt-2">
+                    <FormField
+                      control={form.control}
+                      name="connectionString"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>URL de Conexión</FormLabel>
+                          <FormControl>
+                            <Input placeholder="postgresql://user:pass@host:port/db" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </TabsContent>
+                </Tabs>
+
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem className='px-1'>
+                      <FormLabel>Descripción <span className="text-muted-foreground">(Opcional)</span></FormLabel>
+                      <FormControl>
+                        <Input placeholder="p. ej. DB para analíticas" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <DialogFooter className='pt-4 flex-col-reverse sm:flex-row sm:justify-between sm:space-x-2'>
                   {selectedDataSource && (
                     <Button type="button" variant="destructive" onClick={() => setIsDeleteDialogOpen(true)}>
