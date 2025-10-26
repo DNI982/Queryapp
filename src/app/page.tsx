@@ -138,7 +138,7 @@ export default function AuthPage() {
     }
     try {
         const usersColRef = collection(firestore, 'users');
-        const userSnapshot = await getDocs(usersColRef);
+        const userSnapshot = await getDocs(query(usersColRef, limit(1)));
         const isFirstUser = userSnapshot.empty;
         const role = isFirstUser ? 'super-admin' : 'pending-approval';
 
