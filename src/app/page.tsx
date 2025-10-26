@@ -81,7 +81,7 @@ export default function AuthPage() {
   });
 
   useEffect(() => {
-    if (!userLoading && user) {
+    if (!userLoading && user && firestore) {
       const userDocRef = doc(firestore, 'users', user.uid);
       getDoc(userDocRef).then((docSnap) => {
         if (docSnap.exists() && docSnap.data().role === 'pending-approval') {
@@ -131,6 +131,11 @@ export default function AuthPage() {
     setLoading(true);
     setError(null);
     setSuccessMessage(null);
+    if (!firestore) {
+        setError("La base de datos no está lista, por favor intente de nuevo.");
+        setLoading(false);
+        return;
+    }
     try {
         // Check if a super-admin already exists
         const superAdminQuery = query(collection(firestore, 'users'), where('role', '==', 'super-admin'), limit(1));
@@ -156,6 +161,7 @@ export default function AuthPage() {
                 requestedAt: serverTimestamp(),
             });
             setSuccessMessage('¡Registro exitoso! Tu cuenta está pendiente de aprobación por un administrador.');
+            registerForm.reset();
             setActiveTab('login'); // Switch to login tab
         } else {
             // First user becomes super admin and can log in immediately
@@ -193,7 +199,11 @@ export default function AuthPage() {
         <CardContent>
           <Tabs
             value={activeTab}
-            onValueChange={setActiveTab}
+            onValueChange={(tab) => {
+                setActiveTab(tab);
+                setError(null);
+                setSuccessMessage(null);
+            }}
             className="w-full"
           >
             <TabsList className="grid w-full grid-cols-2">
@@ -213,7 +223,7 @@ export default function AuthPage() {
                       <AlertDescription>{error}</AlertDescription>
                     </Alert>
                   )}
-                  {successMessage && activeTab === 'login' && (
+                  {successMessage && (
                      <Alert variant='default' className='bg-green-500/10 border-green-500/50 text-green-700 dark:text-green-400 [&>svg]:text-green-700 dark:[&>svg]:text-green-400'>
                       <AlertCircle className="h-4 w-4" />
                       <AlertTitle>¡Éxito!</AlertTitle>
@@ -334,5 +344,3 @@ export default function AuthPage() {
     </main>
   );
 }
-
-    
