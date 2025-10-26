@@ -137,13 +137,9 @@ export default function AuthPage() {
         return;
     }
     try {
-        const usersColRef = collection(firestore, 'users');
-        const userSnapshot = await getDocs(query(usersColRef, limit(1)));
-        const isFirstUser = userSnapshot.empty;
-        const role = isFirstUser ? 'super-admin' : 'pending-approval';
-
         const userCredential = await signUp(values.email, values.password);
         const newUser = userCredential.user;
+        const role = 'pending-approval';
 
         await setDoc(doc(firestore, 'users', newUser.uid), {
             displayName: newUser.email?.split('@')[0] || 'Nuevo Usuario',
@@ -151,18 +147,15 @@ export default function AuthPage() {
             role: role,
         });
 
-        if (role === 'pending-approval') {
-            await setDoc(doc(firestore, 'pendingUsers', newUser.uid), {
-                email: newUser.email,
-                uid: newUser.uid,
-                requestedAt: serverTimestamp(),
-            });
-            setSuccessMessage('¡Registro exitoso! Tu cuenta está pendiente de aprobación por un administrador.');
-            registerForm.reset();
-            setActiveTab('login');
-        } else {
-            router.push('/dashboard');
-        }
+        await setDoc(doc(firestore, 'pendingUsers', newUser.uid), {
+            email: newUser.email,
+            uid: newUser.uid,
+            requestedAt: serverTimestamp(),
+        });
+        
+        setSuccessMessage('¡Registro exitoso! Tu cuenta está pendiente de aprobación por un administrador.');
+        registerForm.reset();
+        setActiveTab('login');
 
     } catch (err: any) {
       setError(handleAuthError(err));
