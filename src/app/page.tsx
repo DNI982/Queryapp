@@ -120,7 +120,7 @@ export default function AuthPage() {
     try {
       await signIn(values.email, values.password);
       // The useEffect will handle redirection
-    } catch (err: any) {
+    } catch (err: any)      {
       setError(handleAuthError(err));
     } finally {
       setLoading(false);
@@ -137,16 +137,14 @@ export default function AuthPage() {
         return;
     }
     try {
-        // Check if a super-admin already exists
-        const superAdminQuery = query(collection(firestore, 'users'), where('role', '==', 'super-admin'), limit(1));
-        const superAdminSnapshot = await getDocs(superAdminQuery);
-        const isFirstUser = superAdminSnapshot.empty;
+        const usersColRef = collection(firestore, 'users');
+        const userSnapshot = await getDocs(usersColRef);
+        const isFirstUser = userSnapshot.empty;
         const role = isFirstUser ? 'super-admin' : 'pending-approval';
 
         const userCredential = await signUp(values.email, values.password);
         const newUser = userCredential.user;
 
-        // Create user profile in Firestore
         await setDoc(doc(firestore, 'users', newUser.uid), {
             displayName: newUser.email?.split('@')[0] || 'Nuevo Usuario',
             email: newUser.email,
@@ -154,7 +152,6 @@ export default function AuthPage() {
         });
 
         if (role === 'pending-approval') {
-             // Create a document in pendingUsers for easier querying by admins
             await setDoc(doc(firestore, 'pendingUsers', newUser.uid), {
                 email: newUser.email,
                 uid: newUser.uid,
@@ -162,9 +159,8 @@ export default function AuthPage() {
             });
             setSuccessMessage('¡Registro exitoso! Tu cuenta está pendiente de aprobación por un administrador.');
             registerForm.reset();
-            setActiveTab('login'); // Switch to login tab
+            setActiveTab('login');
         } else {
-            // First user becomes super admin and can log in immediately
             router.push('/dashboard');
         }
 
