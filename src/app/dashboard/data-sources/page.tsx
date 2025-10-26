@@ -39,7 +39,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { PlusCircle } from 'lucide-react';
 import {
   PostgreSqlIcon,
@@ -90,7 +89,12 @@ const initialDataSources = [
 const formSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio.'),
   type: z.enum(['PostgreSQL', 'MongoDB', 'MariaDB', 'Oracle']),
-  description: z.string().min(1, 'La descripción es obligatoria.'),
+  description: z.string(),
+  host: z.string().min(1, 'El host es obligatorio.'),
+  port: z.coerce.number().positive('El puerto debe ser un número positivo.'),
+  username: z.string().min(1, 'El usuario es obligatorio.'),
+  password: z.string(),
+  database: z.string().min(1, 'El nombre de la base de datos es obligatorio.'),
 });
 
 export default function DataSourcesPage() {
@@ -103,12 +107,18 @@ export default function DataSourcesPage() {
       name: '',
       type: 'PostgreSQL',
       description: '',
+      host: '',
+      port: undefined,
+      username: '',
+      password: '',
+      database: ''
     },
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     const newDataSource = {
       ...values,
+      description: values.description || 'Sin descripción.',
       icon: iconMap[values.type as keyof typeof iconMap],
       status: 'Conectado',
     };
@@ -133,7 +143,7 @@ export default function DataSourcesPage() {
               Añadir Nueva Fuente
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Añadir Nueva Fuente de Datos</DialogTitle>
               <DialogDescription>
@@ -141,15 +151,15 @@ export default function DataSourcesPage() {
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3 py-4 max-h-[70vh] overflow-y-auto pr-2">
                 <FormField
                   control={form.control}
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nombre</FormLabel>
+                      <FormLabel>Nombre de la Conexión</FormLabel>
                       <FormControl>
-                        <Input placeholder="p. ej., Base de datos de Staging" {...field} />
+                        <Input placeholder="p. ej., DB de Producción" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -164,7 +174,7 @@ export default function DataSourcesPage() {
                        <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Seleccione un tipo de base de datos" />
+                            <SelectValue placeholder="Seleccione un tipo" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
@@ -178,21 +188,90 @@ export default function DataSourcesPage() {
                     </FormItem>
                   )}
                 />
-                 <FormField
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="host"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Host</FormLabel>
+                        <FormControl>
+                          <Input placeholder="localhost" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="port"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Puerto</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="5432" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
                   control={form.control}
-                  name="description"
+                  name="database"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Descripción</FormLabel>
+                      <FormLabel>Base de Datos</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Breve descripción de la fuente de datos" {...field} />
+                        <Input placeholder="nombre_de_la_db" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <DialogFooter>
-                  <Button type="submit">Guardar Conexión</Button>
+                 <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="username"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Usuario</FormLabel>
+                          <FormControl>
+                            <Input placeholder="admin" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Contraseña</FormLabel>
+                          <FormControl>
+                            <Input type="password" placeholder="••••••••" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                </div>
+                 <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Descripción <span className="text-muted-foreground">(Opcional)</span></FormLabel>
+                      <FormControl>
+                        <Input placeholder="p. ej. DB para analíticas" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter className='pt-4'>
+                  <Button type="submit">Probar y Guardar Conexión</Button>
                 </DialogFooter>
               </form>
             </Form>
@@ -201,8 +280,8 @@ export default function DataSourcesPage() {
       </div>
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {dataSources.map((source) => (
-          <Card key={source.name}>
+        {dataSources.map((source, index) => (
+          <Card key={`${source.name}-${index}`}>
             <CardHeader className="flex-row items-start gap-4 space-y-0">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary">
                 <source.icon className="h-6 w-6 text-secondary-foreground" />
@@ -224,7 +303,7 @@ export default function DataSourcesPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground line-clamp-2">
                 {source.description}
               </p>
             </CardContent>
