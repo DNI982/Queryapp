@@ -37,14 +37,6 @@ const loginSchema = z.object({
     .min(6, { message: 'La contraseña debe tener al menos 6 caracteres.' }),
 });
 
-const loginForm = useForm<z.infer<typeof loginSchema>>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
-});
-
 const registerSchema = z
   .object({
     email: z
@@ -60,15 +52,6 @@ const registerSchema = z
     path: ['confirmPassword'],
   });
 
-const registerForm = useForm<z.infer<typeof registerSchema>>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: {
-        email: '',
-        password: '',
-        confirmPassword: '',
-    },
-});
-
 export default function AuthPage() {
   const [activeTab, setActiveTab] = useState('login');
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +62,23 @@ export default function AuthPage() {
   const { signUp, signIn } = useAuthActions();
   const firestore = useFirestore();
   const router = useRouter();
+
+  const loginForm = useForm<z.infer<typeof loginSchema>>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
+
+  const registerForm = useForm<z.infer<typeof registerSchema>>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+        email: '',
+        password: '',
+        confirmPassword: '',
+    },
+  });
 
   useEffect(() => {
     if (!userLoading && user) {
