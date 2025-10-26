@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useFirestore } from '@/firebase';
-import { collection, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import {
   Table,
   TableBody,
@@ -64,29 +64,75 @@ export default function UsersAdminPage() {
     return () => unsubscribe();
   }, [firestore]);
 
-  const handleRoleChange = async (userId: string, currentRole: UserProfile['role'], newRole: UserProfile['role']) => {
+  const handleApprove = async (userId: string) => {
     if (!firestore) return;
+    const batch = writeBatch(firestore);
+    
     const userDocRef = doc(firestore, 'users', userId);
-    try {
-        await updateDoc(userDocRef, { role: newRole });
-        
-        if (currentRole === 'pending-approval' && (newRole === 'user' || newRole === 'super-admin')) {
-            const pendingUserDocRef = doc(firestore, 'pendingUsers', userId);
-            await deleteDoc(pendingUserDocRef);
-        }
+    batch.update(userDocRef, { role: 'user' });
 
+    const pendingUserDocRef = doc(firestore, 'pendingUsers', userId);
+    batch.delete(pendingUserDocRef);
+
+    try {
+        await batch.commit();
         toast({
-            title: 'Rol de usuario actualizado',
-            description: `El usuario ha sido actualizado a ${newRole}.`,
+            title: 'Usuario Aprobado',
+            description: `El usuario ha sido aprobado y ahora tiene acceso.`,
         });
     } catch (error) {
-        console.error("Error updating user role: ", error);
+        console.error("Error approving user: ", error);
         toast({
             variant: 'destructive',
             title: 'Error',
-            description: 'No se pudo actualizar el rol del usuario.',
+            description: 'No se pudo aprobar al usuario.',
         });
     }
+  };
+
+  const handleDeny = async (userId: string, userEmail: string) => {
+    if (!firestore) return;
+    const batch = writeBatch(firestore);
+
+    const userDocRef = doc(firestore, 'users', userId);
+    batch.delete(userDocRef);
+
+    const pendingUserDocRef = doc(firestore, 'pendingUsers', userId);
+    batch.delete(pendingUserDocRef);
+
+    try {
+        await batch.commit();
+        toast({
+            title: 'Usuario Denegado',
+            description: `La solicitud de ${userEmail} ha sido denegada y eliminada.`,
+        });
+    } catch (error) {
+        console.error("Error denying user: ", error);
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'No se pudo denegar la solicitud del usuario.',
+        });
+    }
+  }
+  
+  const handleMakeAdmin = async (userId: string) => {
+      if (!firestore) return;
+      const userDocRef = doc(firestore, 'users', userId);
+      try {
+          await updateDoc(userDocRef, { role: 'super-admin' });
+          toast({
+              title: 'Rol de usuario actualizado',
+              description: 'El usuario ahora es un super-admin.',
+          });
+      } catch(error) {
+          console.error("Error making user admin: ", error);
+          toast({
+              variant: 'destructive',
+              title: 'Error',
+              description: 'No se pudo actualizar el rol del usuario.',
+          });
+      }
   };
   
   const getBadgeVariant = (role: UserProfile['role']) => {
@@ -151,7 +197,7 @@ export default function UsersAdminPage() {
                       size="sm"
                       variant="outline"
                       className="text-green-500 border-green-500 hover:bg-green-500/10 hover:text-green-600"
-                      onClick={() => handleRoleChange(user.id, user.role, 'user')}
+                      onClick={() => handleApprove(user.id)}
                     >
                       <CheckCircle className="mr-2 h-4 w-4" />
                       Aprobar
@@ -172,7 +218,7 @@ export default function UsersAdminPage() {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleRoleChange(user.id, user.role, 'user')}>Denegar Acceso</AlertDialogAction>
+                          <AlertDialogAction onClick={() => handleDeny(user.id, user.email)}>Denegar Acceso</AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
@@ -195,7 +241,7 @@ export default function UsersAdminPage() {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleRoleChange(user.id, user.role, 'super-admin')}>Confirmar</AlertDialogAction>
+                          <AlertDialogAction onClick={() => handleMakeAdmin(user.id)}>Confirmar</AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
@@ -253,3 +299,5 @@ export default function UsersAdminPage() {
     </div>
   );
 }
+
+    
