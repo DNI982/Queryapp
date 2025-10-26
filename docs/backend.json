@@ -14,9 +14,36 @@
           "type": "string",
           "format": "email",
           "description": "The user's email address."
+        },
+        "role": {
+          "type": "string",
+          "description": "The user's role in the system.",
+          "enum": ["super-admin", "user", "pending-approval"]
         }
       },
-      "required": ["email"]
+      "required": ["email", "role"]
+    },
+    "pendingUser": {
+      "title": "Pending User",
+      "description": "Represents a user registration that is pending administrator approval.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The email address of the user pending approval."
+        },
+        "uid": {
+          "type": "string",
+          "description": "The Firebase Authentication UID of the user."
+        },
+        "requestedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The timestamp when the user registered."
+        }
+      },
+      "required": ["email", "uid", "requestedAt"]
     }
   },
   "auth": {
@@ -27,7 +54,13 @@
       "schema": {
         "$ref": "#/entities/userProfile"
       },
-      "description": "Stores public information about a user."
+      "description": "Stores public information about a user, including their role."
+    },
+    "/pendingUsers/{userId}": {
+        "schema": {
+            "$ref": "#/entities/pendingUser"
+        },
+        "description": "Stores registration requests that are pending approval by a super-admin."
     }
   }
 }
