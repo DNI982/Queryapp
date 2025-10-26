@@ -100,6 +100,7 @@ const formSchema = z.discriminatedUnion("connectionType", [
     username: z.string().min(1, "El usuario es obligatorio."),
     password: z.string(),
     database: z.string().min(1, "El nombre de la base de datos es obligatorio."),
+    connectionString: z.string().optional(),
   }),
   z.object({
     connectionType: z.literal("url"),
@@ -107,12 +108,30 @@ const formSchema = z.discriminatedUnion("connectionType", [
     type: z.enum(['PostgreSQL', 'MongoDB', 'MariaDB', 'Oracle', 'MySQL'], { required_error: 'Debe seleccionar un tipo de base de datos.' }),
     description: z.string().optional(),
     connectionString: z.string().min(10, "La URL de conexión es obligatoria."),
+    host: z.string().optional(),
+    port: z.coerce.number().optional(),
+    username: z.string().optional(),
+    password: z.string().optional(),
+    database: z.string().optional(),
   }),
 ]);
 
 const schemaAnalysisSchema = z.object({
     schema: z.string().min(20, 'El esquema debe tener al menos 20 caracteres.'),
 });
+
+const emptyFormValues: z.infer<typeof formSchema> = {
+  connectionType: 'fields',
+  name: '',
+  description: '',
+  host: '',
+  username: '',
+  password: '',
+  database: '',
+  port: undefined,
+  connectionString: '',
+  type: undefined,
+};
 
 export default function DataSourcesPage() {
   const [dataSources, setDataSources] = useState<DataSource[]>([]);
@@ -148,16 +167,7 @@ export default function DataSourcesPage() {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      connectionType: "fields",
-      name: '',
-      description: '',
-      host: '',
-      username: '',
-      password: '',
-      database: '',
-      port: undefined,
-    }
+    defaultValues: emptyFormValues
   });
   
   const analysisForm = useForm<z.infer<typeof schemaAnalysisSchema>>({
@@ -184,23 +194,17 @@ export default function DataSourcesPage() {
         setConnectionTab(selectedDataSource.connectionType || 'fields');
         form.reset({
             ...selectedDataSource,
+            description: selectedDataSource.description || '',
+            connectionString: selectedDataSource.connectionString || '',
+            host: selectedDataSource.host || '',
+            username: selectedDataSource.username || '',
+            database: selectedDataSource.database || '',
             password: '',
-            // @ts-ignore
             port: selectedDataSource.port || undefined,
         })
     } else {
         setConnectionTab('fields');
-        form.reset({
-            connectionType: "fields",
-            name: '',
-            type: undefined,
-            description: '',
-            host: '',
-            port: undefined,
-            username: '',
-            password: '',
-            database: ''
-        })
+        form.reset(emptyFormValues)
     }
 }, [selectedDataSource, isManageDialogOpen, form])
 
@@ -232,7 +236,7 @@ export default function DataSourcesPage() {
           });
           setIsAddDialogOpen(false);
         }
-        form.reset();
+        form.reset(emptyFormValues);
     } catch (error) {
         console.error("Error submitting data source:", error);
         toast({ variant: 'destructive', title: 'Error', description: 'No se pudo guardar la fuente de datos.' })
@@ -277,7 +281,7 @@ export default function DataSourcesPage() {
   const openDialog = (mode: 'add' | 'manage' | 'analyze', dataSource?: DataSource) => {
     setSelectedDataSource(dataSource || null);
     if (mode === 'add') {
-        form.reset();
+        form.reset(emptyFormValues);
         setIsAddDialogOpen(true);
     } else if (mode === 'manage') {
         setIsManageDialogOpen(true);
@@ -440,7 +444,7 @@ export default function DataSourcesPage() {
                         <FormItem>
                           <FormLabel>URL de Conexión</FormLabel>
                           <FormControl>
-                            <Input placeholder="postgresql://user:pass@host:port/db" {...field} />
+                            <Input placeholder="postgresql://user:pass@host:port/db" {...field} value={field.value ?? ''} />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -456,7 +460,7 @@ export default function DataSourcesPage() {
                     <FormItem className='px-1'>
                       <FormLabel>Descripción <span className="text-muted-foreground">(Opcional)</span></FormLabel>
                       <FormControl>
-                        <Input placeholder="p. ej. DB para analíticas" {...field} />
+                        <Input placeholder="p. ej. DB para analíticas" {...field} value={field.value ?? ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -581,3 +585,5 @@ export default function DataSourcesPage() {
     </div>
   );
 }
+
+    
