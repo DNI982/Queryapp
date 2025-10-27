@@ -51,17 +51,24 @@ export async function executeQuery(dataSource: any, sqlQuery: string) {
 
             case 'MongoDB':
                 if (sqlQuery.trim().toLowerCase().startsWith('db.')) {
-                    const client = new MongoClient(dataSource.connectionString);
-                    await client.connect();
+                    let connectionString = dataSource.connectionString;
+                    
+                    if (!connectionString) {
+                        const user = dataSource.username ? `${encodeURIComponent(dataSource.username)}:${encodeURIComponent(dataSource.password || '')}@` : '';
+                        connectionString = `mongodb://${user}${dataSource.host}:${dataSource.port}/${dataSource.database}`;
+                    }
+
+                    const mongoClient = new MongoClient(connectionString);
+                    await mongoClient.connect();
                     try {
-                        const db = client.db();
+                        const db = mongoClient.db();
                         // This is a very simplified and UNSAFE way to execute mongo queries.
                         // In a real app, you MUST sanitize and validate the query string.
                         // Using eval is dangerous. This is for demonstration purposes.
                         const mongoResult = await eval(`(async () => { return ${sqlQuery} })()`);
                         results = Array.isArray(mongoResult) ? mongoResult : [mongoResult];
                     } finally {
-                        await client.close();
+                        await mongoClient.close();
                     }
                 } else {
                      throw new Error('Solo se admiten consultas de MongoDB que comiencen con "db.".');
