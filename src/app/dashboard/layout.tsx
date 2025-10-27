@@ -66,9 +66,10 @@ export default function DashboardLayout({
     { href: '/dashboard/analytics', label: 'Analíticas', icon: BarChart2 },
   ];
   
-  if (role === 'super-admin') {
-      menuItems.push({ href: '/dashboard/admin', label: 'Administración', icon: Users });
-  }
+  // The admin panel is temporarily disabled.
+  // if (role === 'super-admin') {
+  //     menuItems.push({ href: '/dashboard/admin', label: 'Administración', icon: Users });
+  // }
 
   const handleSignOut = async () => {
     await signOut();

@@ -28,7 +28,7 @@ import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { FirebaseError } from 'firebase/app';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -86,23 +86,10 @@ export default function AuthPage() {
   });
 
   useEffect(() => {
-    if (!userLoading && user && firestore) {
-      const userDocRef = doc(firestore, 'users', user.uid);
-      getDoc(userDocRef).then((docSnap) => {
-        if (docSnap.exists() && docSnap.data().role === 'pending-approval') {
-          router.push('/pending-approval');
-        } else {
-          router.push('/dashboard');
-        }
-      }).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: userDocRef.path,
-            operation: 'get'
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      });
+    if (!userLoading && user) {
+        router.push('/dashboard');
     }
-  }, [user, userLoading, router, firestore]);
+  }, [user, userLoading, router]);
 
   const handleAuthError = (err: any) => {
     if (err instanceof FirebaseError) {
@@ -154,8 +141,7 @@ export default function AuthPage() {
         const role = values.role as 'admin' | 'db-manager' | 'db-analyst';
 
         const userDocRef = doc(firestore, 'users', newUser.uid);
-        // For simplicity in this reverted state, we are auto-approving users.
-        // The 'pending-approval' flow will be re-implemented later.
+        
         const userDocData = {
             displayName: newUser.email?.split('@')[0] || 'Nuevo Usuario',
             email: newUser.email,
@@ -172,8 +158,7 @@ export default function AuthPage() {
                  throw serverError;
             });
         
-        // No longer creating pending users, approve directly for now.
-        setSuccessMessage('¡Registro exitoso! Ya puedes iniciar sesión.');
+        setSuccessMessage('¡Registro exitoso! Ahora puedes iniciar sesión para acceder al panel.');
         
         registerForm.reset();
         setActiveTab('login');
