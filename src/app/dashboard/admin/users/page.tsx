@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, Shield, User, MoreVertical, Briefcase, Database } from 'lucide-react';
+import { CheckCircle, XCircle, Shield, User, MoreVertical, Briefcase, Database, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -218,13 +218,7 @@ export default function UsersAdminPage() {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {loading ? (
-          <TableRow>
-            <TableCell colSpan={type === 'pending' ? 5 : 4} className="h-24 text-center">
-              Cargando usuarios...
-            </TableCell>
-          </TableRow>
-        ) : userList.length > 0 ? (
+        {userList.length > 0 ? (
           userList.map((user) => (
             <TableRow key={user.id}>
               <TableCell className="font-medium">{user.email}</TableCell>
@@ -333,6 +327,14 @@ export default function UsersAdminPage() {
       </TableBody>
     </Table>
   );
+
+  if (loading) {
+      return (
+          <div className="flex h-[calc(100vh-theme(spacing.32))] items-center justify-center">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          </div>
+      );
+  }
 
   return (
     <>

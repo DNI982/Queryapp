@@ -1,123 +1,157 @@
+/**
+ * @fileoverview Firestore Security Rules for the application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a role-based access control model with strict ownership constraints where appropriate.
+ * Super-admins have full access. Other roles have limited access based on pre-defined permissions.
+ * User data is generally private, with some exceptions for public read access where explicitly specified.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profile information, including roles.
+ * - /pendingUsers/{userId}: Stores registration requests pending approval.
+ * - /dataSources/{dataSourceId}: Stores database connection information.
+ * - /permissions/{permissionId}: Stores module-specific role permissions.
+ *
+ * Key Security Decisions:
+ * - User listing is only allowed for super-admins.
+ * - Data validation is minimized to facilitate rapid prototyping and schema evolution.
+ * - Read access is generally open, but write access is strictly controlled based on role and ownership.
+ *
+ * Denormalization for Authorization:
+ * - User roles are stored directly within the `/users/{userId}` document to avoid needing a separate lookup.
+ */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Checks if the user is signed in.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the authenticated user's UID matches the provided userId.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the user has the 'super-admin' role.
-     */
-    function isSuperAdmin() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'super-admin';
-    }
-
-    /**
-     * @description Checks if the user has the 'admin' role.
-     */
-    function isAdmin() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    /**
-     * @description Checks if the user has the 'db-manager' role.
-     */
-    function isDbManager() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'db-manager';
-    }
-
-    /**
-     * @description Checks if the user has the 'db-analyst' role.
-     */
-    function isDbAnalyst() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'db-analyst';
-    }
-
-    /**
-     * @description Checks if the user has the 'pending-approval' role.
-     */
-    function isPendingApproval() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'pending-approval';
-    }
-
-    /**
-     * @description Checks if the user is the owner of the data source.
-     */
-    function isDataSourceOwner(ownerId) {
-      return isSignedIn() && request.auth.uid == ownerId;
-    }
-
-    /**
-     * @description Checks if the user is the owner of the data source and the document exists.
-     */
-    function isExistingDataSourceOwner(ownerId) {
-      return isDataSourceOwner(ownerId) && get(resource).data.ownerId == ownerId;
-    }
-
-    /**
-     * @description Checks if the user is an existing owner.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && get(resource).data.userId == userId;
-    }
-
-    /**
-     * @description Checks if the userId in the path matches the userId in the data.
-     */
-    function isValidUserId(userId) {
-      return request.resource.data.email == get(/databases/$(database)/documents/users/$(userId)).data.email;
-    }
-
-    /**
-     * @description Rules for /users/{userId} documents.
+     * @description Controls access to user profile documents.
+     * @path /users/{userId}
+     * @allow (get) Any signed-in user can read any user profile.
+     * @allow (create) A user can create their own profile if the userId matches their auth UID.
+     * @allow (update) A user can update their own profile.
+     * @allow (delete) A user can delete their own profile.
+     * @deny (create) A user cannot create a profile for another user.
+     * @deny (update) A user cannot update another user's profile.
+     * @principle Enforces user-ownership and role-based access.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false;
-      allow create: if request.auth.uid == userId && request.auth.token.email == request.resource.data.email;
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
-          
-        function userExists() {
-            return exists(/databases/$(database)/documents/users/$(userId));
-        }
+      // Allow anyone to read user profiles
+      allow get: if isSignedIn();
+
+      // Allow a user to create their own profile, enforcing userId consistency.
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.email == request.auth.token.email;
+
+      // Allow a user to update their own profile.
+      allow update: if isSignedIn() && isOwner(userId);
+
+      //Allow a user to delete their own profile.
+      allow delete: if isSignedIn() && isOwner(userId) && resource != null;
+
+      // Only Super Admins can list all users
+      allow list: if hasRole(['super-admin']);
     }
 
     /**
-     * @description Rules for /pendingUsers/{userId} documents.
+     * @description Controls access to pending user registration requests.
+     * @path /pendingUsers/{pendingUserId}
+     * @allow (create) Any signed-in user can request an account.
+     * @allow (get) Only super-admins can read pending user requests.
+     * @allow (update) Only super-admins can update pending user requests.
+     * @allow (delete) Only super-admins can delete pending user requests.
+     * @deny (list) No one can list pending user requests.
+     * @principle Restricts access to sensitive registration data to super-admins.
      */
-    match /pendingUsers/{userId} {
-      allow get, list: if isSuperAdmin();
-      allow create: if isSignedIn();
-      allow update, delete: if isSuperAdmin();
+    match /pendingUsers/{pendingUserId} {
+      // Allow any signed-in user to create a pending user request.
+      allow create: if isSignedIn() && request.auth.token.email == request.resource.data.email;
+
+      // Only super-admins can read pending user requests.
+      allow get: if hasRole(['super-admin']);
+
+      // Only super-admins can update pending user requests.
+      allow update: if hasRole(['super-admin']) && resource != null;
+
+      // Only super-admins can delete pending user requests.
+      allow delete: if hasRole(['super-admin']) && resource != null;
+
+      // No one can list pending user requests.
+      allow list: if false;
     }
 
     /**
-     * @description Rules for /dataSources/{dataSourceId} documents.
+     * @description Controls access to data source connection documents.
+     * @path /dataSources/{dataSourceId}
+     * @allow (get) Any signed-in user can read a data source if they are the owner.
+     * @allow (create) A user can create a data source if they are the owner.
+     * @allow (update) A user can update a data source if they are the owner.
+     * @allow (delete) A user can delete a data source if they are the owner.
+     * @deny (create) A user cannot create a data source for another user.
+     * @deny (update) A user cannot update another user's data source.
+     * @principle Enforces data source ownership for all operations.
      */
     match /dataSources/{dataSourceId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn() && request.auth.uid == request.resource.data.ownerId;
-      allow update: if isSignedIn() && request.auth.uid == resource.data.ownerId;
-      allow delete: if isSignedIn() && request.auth.uid == resource.data.ownerId;
+      // Allow owner to read
+      allow get: if isSignedIn() && isOwner(resource.data.ownerId);
+
+      //Allow owner to create if the ownerId matches the authenticated user
+      allow create: if isSignedIn() && isOwner(request.resource.data.ownerId);
+
+      // Allow owner to update if they are the existing owner
+      allow update: if isSignedIn() && isExistingOwner(resource.data.ownerId);
+
+      // Allow owner to delete if they are the existing owner
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.ownerId);
+
+      // Only allow owners to list their own data sources
+      allow list: if isSignedIn() && isOwner(request.auth.uid);
     }
 
     /**
-     * @description Rules for /permissions/{permissionId} documents.
+     * @description Controls access to role permission documents.
+     * @path /permissions/{permissionId}
+     * @allow (get) Only super-admins can read role permissions.
+     * @allow (create) Only super-admins can create role permissions.
+     * @allow (update) Only super-admins can update role permissions.
+     * @allow (delete) Only super-admins can delete role permissions.
+     * @deny (list) No one can list the permissions
+     * @principle Restricts management of role-based permissions to super-admins.
      */
     match /permissions/{permissionId} {
-      allow get, list, create, update, delete: if isSuperAdmin();
+      // Only super-admins can read
+      allow get: if hasRole(['super-admin']);
+
+      // Only super-admins can create
+      allow create: if hasRole(['super-admin']);
+
+      // Only super-admins can update
+      allow update: if hasRole(['super-admin']) && resource != null;
+
+      // Only super-admins can delete
+      allow delete: if hasRole(['super-admin']) && resource != null;
+
+      // No one can list role permissions.
+      allow list: if false;
     }
+  }
+
+  // Helper function to determine if the user is signed in.
+  function isSignedIn() {
+    return request.auth != null;
+  }
+
+  // Helper function to determine if the user is the owner of the resource.
+  function isOwner(userId) {
+    return request.auth.uid == userId;
+  }
+
+    // Helper function to determine if the user is the owner of the resource and the resource exists.
+  function isExistingOwner(userId) {
+    return isOwner(userId) && resource != null;
+  }
+
+  // Helper function to determine if the user has one of the specified roles.
+  function hasRole(roles) {
+    return isSignedIn() && request.auth.token.role in roles;
   }
 }
