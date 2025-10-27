@@ -44,6 +44,50 @@
         }
       },
       "required": ["email", "uid", "requestedAt"]
+    },
+    "dataSource": {
+      "title": "Data Source",
+      "description": "Represents a connection to a database.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "connectionType": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "number"
+        },
+        "username": {
+          "type": "string"
+        },
+        "database": {
+          "type": "string"
+        },
+        "connectionString": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "schemaAnalysis": {
+          "type": "string"
+        },
+        "ownerId": {
+          "type": "string"
+        }
+      },
+      "required": ["name", "type", "ownerId"]
     }
   },
   "auth": {
@@ -61,6 +105,12 @@
             "$ref": "#/entities/pendingUser"
         },
         "description": "Stores registration requests that are pending approval by a super-admin."
+    },
+    "/dataSources/{dataSourceId}": {
+      "schema": {
+        "$ref": "#/entities/dataSource"
+      },
+      "description": "Stores data source connections for users."
     }
   }
 }

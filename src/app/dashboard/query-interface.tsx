@@ -40,8 +40,8 @@ import { Download, Loader2, Sparkles, Table as TableIcon } from 'lucide-react';
 import { generateSQL, executeQuery } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryHistory } from '@/hooks/use-query-history';
-import { useFirestore } from '@/firebase';
-import { collection, onSnapshot, query, type DocumentData } from 'firebase/firestore';
+import { useFirestore, useUser } from '@/firebase';
+import { collection, onSnapshot, query, where, type DocumentData } from 'firebase/firestore';
 
 const formSchema = z.object({
   naturalLanguageQuery: z.string().min(10, {
@@ -55,6 +55,7 @@ interface DataSource {
     name: string;
     type: string;
     schema: string;
+    ownerId: string;
     [key: string]: any; // Allow other properties
 }
 
@@ -67,6 +68,7 @@ export default function QueryInterface() {
   const { toast } = useToast();
   const { addQueryToHistory } = useQueryHistory();
   const firestore = useFirestore();
+  const { user } = useUser();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -77,9 +79,9 @@ export default function QueryInterface() {
   });
 
   useEffect(() => {
-    if (!firestore) return;
+    if (!firestore || !user) return;
 
-    const q = query(collection(firestore, "dataSources"));
+    const q = query(collection(firestore, "dataSources"), where("ownerId", "==", user.uid));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const sources: DataSource[] = [];
         querySnapshot.forEach((doc) => {
@@ -89,13 +91,15 @@ export default function QueryInterface() {
                 ...data,
                 name: `${data.name} (${data.type})`,
                 schema: data.schema || ''
-            });
+            } as DataSource);
         });
         setDataSources(sources);
+    }, (error) => {
+        console.error("Error fetching data sources:", error);
     });
 
     return () => unsubscribe();
-  }, [firestore]);
+  }, [firestore, user]);
 
   async function onSqlGenerate(values: z.infer<typeof formSchema>) {
     setIsLoadingSql(true);

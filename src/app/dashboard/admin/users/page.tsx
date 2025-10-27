@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, XCircle, Shield, User } from 'lucide-react';
+import { CheckCircle, XCircle, Shield, User, MoreVertical } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -34,6 +34,14 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+  } from "@/components/ui/dropdown-menu"
 
 
 type UserProfile = {
@@ -41,6 +49,7 @@ type UserProfile = {
   displayName: string;
   email: string;
   role: 'super-admin' | 'user' | 'pending-approval';
+  requestedRole?: 'super-admin' | 'user';
 };
 
 export default function UsersAdminPage() {
@@ -64,12 +73,12 @@ export default function UsersAdminPage() {
     return () => unsubscribe();
   }, [firestore]);
 
-  const handleApprove = async (userId: string) => {
+  const handleApprove = async (userId: string, requestedRole: UserProfile['requestedRole']) => {
     if (!firestore) return;
     const batch = writeBatch(firestore);
     
     const userDocRef = doc(firestore, 'users', userId);
-    batch.update(userDocRef, { role: 'user' });
+    batch.update(userDocRef, { role: requestedRole || 'user' });
 
     const pendingUserDocRef = doc(firestore, 'pendingUsers', userId);
     batch.delete(pendingUserDocRef);
@@ -78,7 +87,7 @@ export default function UsersAdminPage() {
         await batch.commit();
         toast({
             title: 'Usuario Aprobado',
-            description: `El usuario ha sido aprobado y ahora tiene acceso.`,
+            description: `El usuario ha sido aprobado y ahora tiene el rol de ${requestedRole || 'user'}.`,
         });
     } catch (error) {
         console.error("Error approving user: ", error);
@@ -116,24 +125,24 @@ export default function UsersAdminPage() {
     }
   }
   
-  const handleMakeAdmin = async (userId: string) => {
-      if (!firestore) return;
-      const userDocRef = doc(firestore, 'users', userId);
-      try {
-          await updateDoc(userDocRef, { role: 'super-admin' });
-          toast({
-              title: 'Rol de usuario actualizado',
-              description: 'El usuario ahora es un super-admin.',
-          });
-      } catch(error) {
-          console.error("Error making user admin: ", error);
-          toast({
-              variant: 'destructive',
-              title: 'Error',
-              description: 'No se pudo actualizar el rol del usuario.',
-          });
-      }
-  };
+  const handleRoleChange = async (userId: string, role: UserProfile['role']) => {
+    if (!firestore) return;
+    const userDocRef = doc(firestore, 'users', userId);
+    try {
+        await updateDoc(userDocRef, { role });
+        toast({
+            title: 'Rol de usuario actualizado',
+            description: `El rol del usuario ha sido actualizado a ${role}`,
+        });
+    } catch(error) {
+        console.error("Error updating user role: ", error);
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'No se pudo actualizar el rol del usuario.',
+        });
+    }
+};
   
   const getBadgeVariant = (role: UserProfile['role']) => {
     switch (role) {
@@ -162,20 +171,21 @@ export default function UsersAdminPage() {
       return users.filter(user => user.role === role);
   }
 
-  const renderUserTable = (userList: UserProfile[]) => (
+  const renderUserTable = (userList: UserProfile[], roleType: UserProfile['role']) => (
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Email</TableHead>
           <TableHead>Nombre</TableHead>
           <TableHead>Rol</TableHead>
+          {roleType === 'pending-approval' && <TableHead>Rol Solicitado</TableHead>}
           <TableHead className="text-right">Acciones</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {loading ? (
           <TableRow>
-            <TableCell colSpan={4} className="h-24 text-center">
+            <TableCell colSpan={roleType === 'pending-approval' ? 5 : 4} className="h-24 text-center">
               Cargando usuarios...
             </TableCell>
           </TableRow>
@@ -190,14 +200,19 @@ export default function UsersAdminPage() {
                     {user.role}
                 </Badge>
               </TableCell>
+              {roleType === 'pending-approval' && (
+                <TableCell>
+                  <Badge variant="outline">{user.requestedRole || 'user'}</Badge>
+                </TableCell>
+              )}
               <TableCell className="text-right space-x-2">
-                {user.role === 'pending-approval' && (
+                {roleType === 'pending-approval' && (
                   <>
                     <Button
                       size="sm"
                       variant="outline"
                       className="text-green-500 border-green-500 hover:bg-green-500/10 hover:text-green-600"
-                      onClick={() => handleApprove(user.id)}
+                      onClick={() => handleApprove(user.id, user.requestedRole)}
                     >
                       <CheckCircle className="mr-2 h-4 w-4" />
                       Aprobar
@@ -224,34 +239,32 @@ export default function UsersAdminPage() {
                     </AlertDialog>
                   </>
                 )}
-                 {user.role === 'user' && (
-                  <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button size="sm" variant="outline">
-                            <Shield className="mr-2 h-4 w-4" />
-                            Hacer Admin
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>¿Hacer Super Administrador?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Esto le dará al usuario control total sobre la administración de usuarios y otras áreas críticas.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleMakeAdmin(user.id)}>Confirmar</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                 {(roleType === 'user' || roleType === 'super-admin') && (
+                    <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="h-8 w-8 p-0">
+                        <span className="sr-only">Open menu</span>
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                      <DropdownMenuItem
+                        onClick={() => handleRoleChange(user.id, user.role === 'user' ? 'super-admin' : 'user')}
+                      >
+                        {user.role === 'user' ? 'Hacer Super Admin' : 'Hacer Usuario'}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="text-red-500" onClick={() => handleDeny(user.id, user.email)}>Eliminar</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                  )}
               </TableCell>
             </TableRow>
           ))
         ) : (
           <TableRow>
-            <TableCell colSpan={4} className="h-24 text-center">
+            <TableCell colSpan={roleType === 'pending-approval' ? 5 : 4} className="h-24 text-center">
               No hay usuarios en esta categoría.
             </TableCell>
           </TableRow>
@@ -285,13 +298,13 @@ export default function UsersAdminPage() {
                     <TabsTrigger value="admins">Admins ({filteredUsers('super-admin').length})</TabsTrigger>
                 </TabsList>
                 <TabsContent value="pending">
-                    {renderUserTable(filteredUsers('pending-approval'))}
+                    {renderUserTable(filteredUsers('pending-approval'), 'pending-approval')}
                 </TabsContent>
                 <TabsContent value="users">
-                    {renderUserTable(filteredUsers('user'))}
+                    {renderUserTable(filteredUsers('user'), 'user')}
                 </TabsContent>
                 <TabsContent value="admins">
-                    {renderUserTable(filteredUsers('super-admin'))}
+                    {renderUserTable(filteredUsers('super-admin'), 'super-admin')}
                 </TabsContent>
             </Tabs>
         </CardContent>

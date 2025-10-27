@@ -29,6 +29,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { FirebaseError } from 'firebase/app';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'Por favor, introduce un email válido.' }),
@@ -46,6 +47,7 @@ const registerSchema = z
       .string()
       .min(6, { message: 'La contraseña debe tener al menos 6 caracteres.' }),
     confirmPassword: z.string(),
+    role: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Las contraseñas no coinciden.',
@@ -77,6 +79,7 @@ export default function AuthPage() {
         email: '',
         password: '',
         confirmPassword: '',
+        role: 'user',
     },
   });
 
@@ -140,20 +143,20 @@ export default function AuthPage() {
         const userCredential = await signUp(values.email, values.password);
         const newUser = userCredential.user;
 
-        // For this example, the first user is a super-admin, others are pending.
-        // A more robust solution would involve a server-side check.
         const role = 'pending-approval';
 
         await setDoc(doc(firestore, 'users', newUser.uid), {
             displayName: newUser.email?.split('@')[0] || 'Nuevo Usuario',
             email: newUser.email,
             role: role,
+            requestedRole: values.role,
         });
 
         await setDoc(doc(firestore, 'pendingUsers', newUser.uid), {
             email: newUser.email,
             uid: newUser.uid,
             requestedAt: serverTimestamp(),
+            requestedRole: values.role,
         });
         
         setSuccessMessage('¡Registro exitoso! Tu cuenta está pendiente de aprobación por un administrador.');
@@ -318,6 +321,27 @@ export default function AuthPage() {
                             {...field}
                           />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={registerForm.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Rol</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecciona un rol" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="user">Usuario</SelectItem>
+                            <SelectItem value="super-admin">Super Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}

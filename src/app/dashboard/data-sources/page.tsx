@@ -59,8 +59,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { databaseSchemaUnderstanding } from '@/ai/flows/database-schema-understanding';
 import { Textarea } from '@/components/ui/textarea';
-import { useFirestore } from '@/firebase';
-import { collection, doc, setDoc, onSnapshot, query, updateDoc, deleteDoc } from 'firebase/firestore';
+import { useFirestore, useUser } from '@/firebase';
+import { collection, doc, setDoc, onSnapshot, query, where, updateDoc, deleteDoc } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { testConnection } from '../actions';
 
@@ -88,6 +88,7 @@ interface DataSource {
   connectionString?: string;
   schema?: string;
   schemaAnalysis?: string;
+  ownerId: string;
 }
 
 const formSchema = z.discriminatedUnion("connectionType", [
@@ -149,11 +150,12 @@ export default function DataSourcesPage() {
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { user } = useUser();
   const [connectionTab, setConnectionTab] = useState("fields");
 
   useEffect(() => {
-    if (!firestore) return;
-    const q = query(collection(firestore, "dataSources"));
+    if (!firestore || !user) return;
+    const q = query(collection(firestore, "dataSources"), where("ownerId", "==", user.uid));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const sources: DataSource[] = [];
       querySnapshot.forEach((doc) => {
@@ -165,9 +167,16 @@ export default function DataSourcesPage() {
         } as DataSource);
       });
       setDataSources(sources);
+    }, (error) => {
+        console.error("Error fetching data sources:", error);
+        toast({
+            variant: "destructive",
+            title: "Error de Permisos",
+            description: "No se pudieron cargar las fuentes de datos. Es posible que no tengas permisos."
+        });
     });
     return () => unsubscribe();
-  }, [firestore]);
+  }, [firestore, user, toast]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -220,8 +229,8 @@ export default function DataSourcesPage() {
   }, [selectedDataSource, isAnalyzeDialogOpen, analysisForm]);
 
   async function onDataSourceSubmit(values: z.infer<typeof formSchema>) {
-    if (!firestore) {
-        toast({ variant: 'destructive', title: 'Error', description: 'La base de datos no está disponible.'});
+    if (!firestore || !user) {
+        toast({ variant: 'destructive', title: 'Error', description: 'La base de datos o el usuario no está disponible.'});
         return;
     }
     
@@ -237,7 +246,7 @@ export default function DataSourcesPage() {
     }
 
     try {
-        let dataToSave: Omit<DataSource, 'id' | 'icon' | 'schemaAnalysis'> & { schema?: string } = { ...values };
+        let dataToSave = { ...values, ownerId: user.uid };
 
         if (selectedDataSource) { // Editing
           await setDoc(doc(firestore, "dataSources", selectedDataSource.id), dataToSave, { merge: true });
@@ -249,8 +258,7 @@ export default function DataSourcesPage() {
           setSelectedDataSource(null);
         } else { // Adding
           const newId = crypto.randomUUID();
-          dataToSave.schema = ''; // Initialize schema field
-          await setDoc(doc(firestore, "dataSources", newId), dataToSave);
+          await setDoc(doc(firestore, "dataSources", newId), { ...dataToSave, schema: '' });
           
           toast({
             title: "Conexión Exitosa",
