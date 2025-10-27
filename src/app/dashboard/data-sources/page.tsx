@@ -140,6 +140,7 @@ export default function DataSourcesPage() {
   const [isAnalyzeDialogOpen, setIsAnalyzeDialogOpen] = useState(false);
   const [isManageDialogOpen, setIsManageDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isOverwriteSchemaDialogOpen, setIsOverwriteSchemaDialogOpen] = useState(false);
   const [selectedDataSource, setSelectedDataSource] = useState<DataSource | null>(null);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -268,8 +269,8 @@ export default function DataSourcesPage() {
           });
 
           toast({
-              title: "Esquema Guardado",
-              description: `El esquema para '${selectedDataSource.name}' ha sido guardado exitosamente.`
+              title: "Esquema Guardado y Analizado",
+              description: `El nuevo esquema para '${selectedDataSource.name}' ha sido guardado.`
           });
 
       } catch (error) {
@@ -306,17 +307,28 @@ export default function DataSourcesPage() {
     }
   }
 
-  const openDialog = (mode: 'add' | 'manage' | 'analyze', dataSource?: DataSource) => {
+  const openAnalyzeDialog = () => {
+    analysisForm.reset({ schema: selectedDataSource?.schema || '' });
+    setAnalysisResult(null);
+    setIsAnalyzeDialogOpen(true);
+  }
+
+  const handleAnalyzeClick = (dataSource: DataSource) => {
+    setSelectedDataSource(dataSource);
+    if (dataSource.schema) {
+      setIsOverwriteSchemaDialogOpen(true);
+    } else {
+      openAnalyzeDialog();
+    }
+  }
+
+  const openDialog = (mode: 'add' | 'manage', dataSource?: DataSource) => {
     setSelectedDataSource(dataSource || null);
     if (mode === 'add') {
         form.reset(emptyFormValues);
         setIsAddDialogOpen(true);
     } else if (mode === 'manage') {
         setIsManageDialogOpen(true);
-    } else if (mode === 'analyze') {
-        analysisForm.reset({ schema: dataSource?.schema || '' });
-        setAnalysisResult(null);
-        setIsAnalyzeDialogOpen(true);
     }
   }
 
@@ -531,7 +543,7 @@ export default function DataSourcesPage() {
               <p className="text-sm text-muted-foreground line-clamp-2">{source.description}</p>
             </CardContent>
             <CardFooter className="flex flex-col gap-2 items-stretch">
-                <Button variant="outline" onClick={() => openDialog('analyze', source)}>
+                <Button variant="outline" onClick={() => handleAnalyzeClick(source)}>
                     <ScanSearch className="mr-2 h-4 w-4" />
                     Analizar Esquema
                 </Button>
@@ -606,6 +618,26 @@ export default function DataSourcesPage() {
                 <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>Cancelar</AlertDialogCancel>
                 <AlertDialogAction onClick={handleDeleteDataSource} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                     Eliminar
+                </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={isOverwriteSchemaDialogOpen} onOpenChange={setIsOverwriteSchemaDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                <AlertDialogTitle>¿Sobrescribir Esquema Existente?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    La fuente de datos <strong>'{selectedDataSource?.name}'</strong> ya tiene un esquema analizado. ¿Está seguro de que desea sobrescribirlo? Esta acción no se puede deshacer.
+                </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={() => {
+                    setIsOverwriteSchemaDialogOpen(false);
+                    openAnalyzeDialog();
+                }}>
+                    Sí, Sobrescribir
                 </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>
