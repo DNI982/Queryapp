@@ -104,29 +104,30 @@ export default function PermissionsPage() {
     const docId = `${moduleId}_${roleId}`;
     const permissionDocRef = doc(firestore, 'permissions', docId);
 
-    try {
-      const dataToSet = {
-        moduleId,
-        role: roleId,
-        ...newPermissions[moduleId][roleId],
-      };
-      await setDoc(permissionDocRef, dataToSet, { merge: true });
-      toast({
-        title: 'Permiso actualizado',
-        description: `Se actualizó el permiso de ${permissionType} para ${roleId} en ${moduleId}.`,
-      });
-    } catch (error) {
-      const permissionError = new FirestorePermissionError({
-        path: permissionDocRef.path,
-        operation: 'update',
-        requestResourceData: { [permissionType]: value },
-      });
-      errorEmitter.emit('permission-error', permissionError);
-      // Revert optimistic update
-      const oldPermissions = { ...permissions };
-      oldPermissions[moduleId][roleId][permissionType] = !value;
-      setPermissions(oldPermissions);
-    }
+    
+    const dataToSet = {
+      moduleId,
+      role: roleId,
+      ...newPermissions[moduleId][roleId],
+    };
+    
+    setDoc(permissionDocRef, dataToSet, { merge: true }).catch(async (error) => {
+        const permissionError = new FirestorePermissionError({
+            path: permissionDocRef.path,
+            operation: 'update',
+            requestResourceData: { [permissionType]: value },
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        // Revert optimistic update
+        const oldPermissions = { ...permissions };
+        oldPermissions[moduleId][roleId][permissionType] = !value;
+        setPermissions(oldPermissions);
+        toast({
+            variant: 'destructive',
+            title: 'Error de Permiso',
+            description: 'No tienes permiso para actualizar este rol.',
+        });
+    });
   };
 
   return (
