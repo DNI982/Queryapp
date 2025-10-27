@@ -111,7 +111,7 @@ const formSchema = z.discriminatedUnion("connectionType", [
     connectionString: z.string().min(10, "La URL de conexión es obligatoria."),
     host: z.string().optional(),
     port: z.coerce.number().optional(),
-    username: z_string().optional(),
+    username: z.string().optional(),
     password: z.string().optional(),
     database: z.string().optional(),
   }),
@@ -700,5 +700,3 @@ export default function DataSourcesPage() {
     </div>
   );
 }
-
-    
