@@ -160,7 +160,7 @@ export default function AuthPage() {
             role: role,
             requestedRole: values.role,
         };
-        await setDoc(userDocRef, userDocData)
+        setDoc(userDocRef, userDocData)
             .catch(async (serverError) => {
                 const permissionError = new FirestorePermissionError({
                     path: userDocRef.path,
@@ -178,7 +178,7 @@ export default function AuthPage() {
             requestedAt: serverTimestamp(),
             requestedRole: values.role,
         };
-        await setDoc(pendingUserDocRef, pendingUserDocData)
+        setDoc(pendingUserDocRef, pendingUserDocData)
             .catch(async (serverError) => {
                 const permissionError = new FirestorePermissionError({
                     path: pendingUserDocRef.path,
