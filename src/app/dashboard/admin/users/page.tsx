@@ -85,7 +85,7 @@ export default function UsersAdminPage() {
       setUsers(userList);
       setLoading(false);
     },
-    async (serverError) => {
+    (error) => {
         const permissionError = new FirestorePermissionError({
             path: 'users',
             operation: 'list'
