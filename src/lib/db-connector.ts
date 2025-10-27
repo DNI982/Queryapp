@@ -2,7 +2,7 @@
 
 import { Pool } from 'pg';
 import mysql from 'mysql2/promise';
-import { MongoClient } from 'mongodb';
+import { MongoClient, Db } from 'mongodb';
 
 // Helper function to convert BigInt to string for JSON serialization
 const jsonReplacer = (key: string, value: any) => {
@@ -20,6 +20,7 @@ export async function executeQuery(dataSource: any, sqlQuery: string) {
         switch (dataSource.type) {
             case 'PostgreSQL':
                 const pool = new Pool({
+                    connectionString: dataSource.connectionString,
                     host: dataSource.host,
                     port: dataSource.port,
                     user: dataSource.username,
@@ -38,7 +39,7 @@ export async function executeQuery(dataSource: any, sqlQuery: string) {
 
             case 'MySQL':
             case 'MariaDB':
-                 connection = await mysql.createConnection({
+                 connection = await mysql.createConnection(dataSource.connectionString || {
                     host: dataSource.host,
                     port: dataSource.port,
                     user: dataSource.username,
@@ -61,12 +62,14 @@ export async function executeQuery(dataSource: any, sqlQuery: string) {
                     const mongoClient = new MongoClient(connectionString);
                     await mongoClient.connect();
                     try {
-                        const db = mongoClient.db();
+                        const db: Db = mongoClient.db();
                         // This is a very simplified and UNSAFE way to execute mongo queries.
                         // In a real app, you MUST sanitize and validate the query string.
                         // Using eval is dangerous. This is for demonstration purposes.
-                        const mongoResult = await eval(`(async () => { return ${sqlQuery} })()`);
+                        const mongoFunction = new Function('db', `return (async () => { ${sqlQuery} })()`);
+                        const mongoResult = await mongoFunction(db);
                         results = Array.isArray(mongoResult) ? mongoResult : [mongoResult];
+
                     } finally {
                         await mongoClient.close();
                     }

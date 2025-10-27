@@ -73,7 +73,11 @@ const naturalLanguageToSQLFlow = ai.defineFlow(
       query = query.substring(3, query.length - 3).trim();
       const firstLineBreak = query.indexOf('\n');
       if (firstLineBreak !== -1) {
-        query = query.substring(firstLineBreak + 1).trim();
+        // This handles cases where the AI might still add a language identifier like 'sql'
+        const potentialLang = query.substring(0, firstLineBreak).trim();
+        if (potentialLang === 'sql' || potentialLang === 'javascript' || potentialLang === 'js') {
+            query = query.substring(firstLineBreak + 1).trim();
+        }
       }
     }
     return { sqlQuery: query };
