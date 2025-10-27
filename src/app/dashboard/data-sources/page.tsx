@@ -111,7 +111,7 @@ const formSchema = z.discriminatedUnion("connectionType", [
     connectionString: z.string().min(10, "La URL de conexión es obligatoria."),
     host: z.string().optional(),
     port: z.coerce.number().optional(),
-    username: z.string().optional(),
+    username: z_string().optional(),
     password: z.string().optional(),
     database: z.string().optional(),
   }),
@@ -206,12 +206,12 @@ export default function DataSourcesPage() {
             database: selectedDataSource.database || '',
             password: '',
             port: selectedDataSource.port || undefined,
-        })
+        });
     } else {
         setConnectionTab('fields');
-        form.reset(emptyFormValues)
+        form.reset(emptyFormValues);
     }
-}, [selectedDataSource, isManageDialogOpen, form]);
+  }, [selectedDataSource, isManageDialogOpen, form]);
 
   useEffect(() => {
     if (selectedDataSource && isAnalyzeDialogOpen) {
@@ -237,7 +237,7 @@ export default function DataSourcesPage() {
     }
 
     try {
-        let dataToSave: Omit<DataSource, 'id' | 'icon' | 'status' | 'schema'> & { schema?: string } = { ...values };
+        let dataToSave: Omit<DataSource, 'id' | 'icon' | 'schemaAnalysis'> & { schema?: string } = { ...values };
 
         if (selectedDataSource) { // Editing
           await setDoc(doc(firestore, "dataSources", selectedDataSource.id), dataToSave, { merge: true });
@@ -652,7 +652,7 @@ export default function DataSourcesPage() {
                         <AlertTitle>Análisis de la IA</AlertTitle>
                         <AlertDescription className='whitespace-pre-wrap text-sm max-h-[400px] overflow-y-auto'>
                             {selectedDataSource?.schemaAnalysis || 'No hay ningún análisis guardado para esta fuente de datos.'}
-                        </Description>
+                        </AlertDescription>
                     </Alert>
                 </div>
                 <DialogFooter>
@@ -700,3 +700,5 @@ export default function DataSourcesPage() {
     </div>
   );
 }
+
+    
