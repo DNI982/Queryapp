@@ -42,6 +42,8 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
   } from "@/components/ui/dropdown-menu"
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 type UserProfile = {
@@ -68,38 +70,48 @@ export default function UsersAdminPage() {
       );
       setUsers(userList);
       setLoading(false);
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: 'users',
+            operation: 'list'
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        setLoading(false);
     });
 
     return () => unsubscribe();
   }, [firestore]);
 
-  const handleApprove = async (userId: string, requestedRole: UserProfile['requestedRole']) => {
+  const handleApprove = (userId: string, requestedRole: UserProfile['requestedRole']) => {
     if (!firestore) return;
     const batch = writeBatch(firestore);
     
     const userDocRef = doc(firestore, 'users', userId);
-    batch.update(userDocRef, { role: requestedRole || 'user' });
+    const userData = { role: requestedRole || 'user' };
+    batch.update(userDocRef, userData);
 
     const pendingUserDocRef = doc(firestore, 'pendingUsers', userId);
     batch.delete(pendingUserDocRef);
 
-    try {
-        await batch.commit();
-        toast({
-            title: 'Usuario Aprobado',
-            description: `El usuario ha sido aprobado y ahora tiene el rol de ${requestedRole || 'user'}.`,
+    batch.commit()
+        .then(() => {
+            toast({
+                title: 'Usuario Aprobado',
+                description: `El usuario ha sido aprobado y ahora tiene el rol de ${requestedRole || 'user'}.`,
+            });
+        })
+        .catch(async (serverError) => {
+             const permissionError = new FirestorePermissionError({
+                path: `users/${userId} and pendingUsers/${userId}`,
+                operation: 'update',
+                requestResourceData: { user: userData },
+            });
+            errorEmitter.emit('permission-error', permissionError);
         });
-    } catch (error) {
-        console.error("Error approving user: ", error);
-        toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'No se pudo aprobar al usuario.',
-        });
-    }
   };
 
-  const handleDeny = async (userId: string, userEmail: string) => {
+  const handleDeny = (userId: string, userEmail: string) => {
     if (!firestore) return;
     const batch = writeBatch(firestore);
 
@@ -109,39 +121,41 @@ export default function UsersAdminPage() {
     const pendingUserDocRef = doc(firestore, 'pendingUsers', userId);
     batch.delete(pendingUserDocRef);
 
-    try {
-        await batch.commit();
-        toast({
-            title: 'Usuario Denegado',
-            description: `La solicitud de ${userEmail} ha sido denegada y eliminada.`,
+    batch.commit()
+        .then(() => {
+            toast({
+                title: 'Usuario Denegado',
+                description: `La solicitud de ${userEmail} ha sido denegada y eliminada.`,
+            });
+        })
+        .catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: `users/${userId} and pendingUsers/${userId}`,
+                operation: 'delete',
+            });
+            errorEmitter.emit('permission-error', permissionError);
         });
-    } catch (error) {
-        console.error("Error denying user: ", error);
-        toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'No se pudo denegar la solicitud del usuario.',
-        });
-    }
   }
   
-  const handleRoleChange = async (userId: string, role: UserProfile['role']) => {
+  const handleRoleChange = (userId: string, role: UserProfile['role']) => {
     if (!firestore) return;
     const userDocRef = doc(firestore, 'users', userId);
-    try {
-        await updateDoc(userDocRef, { role });
-        toast({
-            title: 'Rol de usuario actualizado',
-            description: `El rol del usuario ha sido actualizado a ${role}`,
+    const newRole = { role };
+    updateDoc(userDocRef, newRole)
+        .then(() => {
+            toast({
+                title: 'Rol de usuario actualizado',
+                description: `El rol del usuario ha sido actualizado a ${role}`,
+            });
+        })
+        .catch(async(serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: userDocRef.path,
+                operation: 'update',
+                requestResourceData: newRole,
+            });
+            errorEmitter.emit('permission-error', permissionError);
         });
-    } catch(error) {
-        console.error("Error updating user role: ", error);
-        toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'No se pudo actualizar el rol del usuario.',
-        });
-    }
 };
   
   const getBadgeVariant = (role: UserProfile['role']) => {

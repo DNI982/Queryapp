@@ -7,6 +7,7 @@ import {
 import type { FirebaseApp } from 'firebase/app';
 import type { Auth } from 'firebase/auth';
 import type { Firestore } from 'firebase/firestore';
+import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 /**
  * The context for the Firebase provider.
@@ -91,6 +92,7 @@ export function FirebaseProvider({
         firestore,
       }}
     >
+      <FirebaseErrorListener />
       {children}
     </FirebaseContext.Provider>
   );

@@ -60,9 +60,11 @@ import { useToast } from '@/hooks/use-toast';
 import { databaseSchemaUnderstanding } from '@/ai/flows/database-schema-understanding';
 import { Textarea } from '@/components/ui/textarea';
 import { useFirestore, useUser } from '@/firebase';
-import { collection, doc, setDoc, onSnapshot, query, where, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, onSnapshot, query, where, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { testConnection } from '../actions';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const iconMap = {
   PostgreSQL: PostgreSqlIcon,
@@ -167,13 +169,13 @@ export default function DataSourcesPage() {
         } as DataSource);
       });
       setDataSources(sources);
-    }, (error) => {
-        console.error("Error fetching data sources:", error);
-        toast({
-            variant: "destructive",
-            title: "Error de Permisos",
-            description: "No se pudieron cargar las fuentes de datos. Es posible que no tengas permisos."
+    },
+    async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: (q as any)._query.path.segments.join('/'),
+            operation: 'list'
         });
+        errorEmitter.emit('permission-error', permissionError);
     });
     return () => unsubscribe();
   }, [firestore, user, toast]);
@@ -247,26 +249,31 @@ export default function DataSourcesPage() {
 
     try {
         let dataToSave = { ...values, ownerId: user.uid };
+        const docRef = selectedDataSource ? doc(firestore, "dataSources", selectedDataSource.id) : doc(firestore, "dataSources", crypto.randomUUID());
 
-        if (selectedDataSource) { // Editing
-          await setDoc(doc(firestore, "dataSources", selectedDataSource.id), dataToSave, { merge: true });
-          toast({
-            title: "Fuente de Datos Actualizada",
+        setDoc(docRef, selectedDataSource ? dataToSave : { ...dataToSave, schema: '' }, { merge: true })
+            .catch(async (serverError) => {
+                const permissionError = new FirestorePermissionError({
+                    path: docRef.path,
+                    operation: selectedDataSource ? 'update' : 'create',
+                    requestResourceData: dataToSave,
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            });
+
+        toast({
+            title: selectedDataSource ? "Fuente de Datos Actualizada" : "Conexión Exitosa",
             description: `La conexión a '${values.name}' fue exitosa y los cambios han sido guardados.`,
-          });
-          setIsManageDialogOpen(false);
-          setSelectedDataSource(null);
-        } else { // Adding
-          const newId = crypto.randomUUID();
-          await setDoc(doc(firestore, "dataSources", newId), { ...dataToSave, schema: '' });
-          
-          toast({
-            title: "Conexión Exitosa",
-            description: `La fuente de datos '${values.name}' ha sido añadida.`,
-          });
-          setIsAddDialogOpen(false);
+        });
+
+        if (selectedDataSource) {
+            setIsManageDialogOpen(false);
+            setSelectedDataSource(null);
+        } else {
+            setIsAddDialogOpen(false);
         }
         form.reset(emptyFormValues);
+
     } catch (error) {
         console.error("Error submitting data source:", error);
         toast({ variant: 'destructive', title: 'Error', description: 'No se pudo guardar la fuente de datos.' })
@@ -287,10 +294,21 @@ export default function DataSourcesPage() {
           setAnalysisResult(result.databaseSchemaDescription);
 
           const dataSourceRef = doc(firestore, 'dataSources', selectedDataSource.id);
-          await updateDoc(dataSourceRef, {
+          
+          const dataToUpdate = {
               schema: values.schema,
               schemaAnalysis: result.databaseSchemaDescription,
-          });
+          };
+
+          updateDoc(dataSourceRef, dataToUpdate)
+            .catch(async (serverError) => {
+                const permissionError = new FirestorePermissionError({
+                    path: dataSourceRef.path,
+                    operation: 'update',
+                    requestResourceData: dataToUpdate,
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            });
 
           toast({
               title: "Esquema Guardado y Analizado",
@@ -312,23 +330,25 @@ export default function DataSourcesPage() {
   async function handleDeleteDataSource() {
     if (!selectedDataSource || !firestore) return;
 
-    try {
-        await deleteDoc(doc(firestore, "dataSources", selectedDataSource.id));
-        toast({
-            title: 'Fuente de Datos Eliminada',
-            description: `'${selectedDataSource.name}' ha sido eliminada permanentemente.`
+    const docRef = doc(firestore, "dataSources", selectedDataSource.id);
+    
+    deleteDoc(docRef)
+        .then(() => {
+            toast({
+                title: 'Fuente de Datos Eliminada',
+                description: `'${selectedDataSource.name}' ha sido eliminada permanentemente.`
+            });
+            setIsDeleteDialogOpen(false);
+            setIsManageDialogOpen(false);
+            setSelectedDataSource(null);
+        })
+        .catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+                path: docRef.path,
+                operation: 'delete',
+            });
+            errorEmitter.emit('permission-error', permissionError);
         });
-        setIsDeleteDialogOpen(false);
-        setIsManageDialogOpen(false);
-        setSelectedDataSource(null);
-    } catch (error) {
-        console.error("Error deleting data source:", error);
-        toast({
-            variant: 'destructive',
-            title: 'Error al Eliminar',
-            description: 'No se pudo eliminar la fuente de datos. Por favor, inténtelo de nuevo.'
-        });
-    }
   }
 
   const openAnalyzeDialog = () => {

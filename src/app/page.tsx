@@ -30,6 +30,8 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 import { FirebaseError } from 'firebase/app';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'Por favor, introduce un email válido.' }),
@@ -92,6 +94,12 @@ export default function AuthPage() {
         } else {
           router.push('/dashboard');
         }
+      }).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: userDocRef.path,
+            operation: 'get'
+        });
+        errorEmitter.emit('permission-error', permissionError);
       });
     }
   }, [user, userLoading, router, firestore]);
@@ -145,19 +153,40 @@ export default function AuthPage() {
 
         const role = 'pending-approval';
 
-        await setDoc(doc(firestore, 'users', newUser.uid), {
+        const userDocRef = doc(firestore, 'users', newUser.uid);
+        const userDocData = {
             displayName: newUser.email?.split('@')[0] || 'Nuevo Usuario',
             email: newUser.email,
             role: role,
             requestedRole: values.role,
-        });
+        };
+        await setDoc(userDocRef, userDocData)
+            .catch(async (serverError) => {
+                const permissionError = new FirestorePermissionError({
+                    path: userDocRef.path,
+                    operation: 'create',
+                    requestResourceData: userDocData,
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            });
 
-        await setDoc(doc(firestore, 'pendingUsers', newUser.uid), {
+
+        const pendingUserDocRef = doc(firestore, 'pendingUsers', newUser.uid);
+        const pendingUserDocData = {
             email: newUser.email,
             uid: newUser.uid,
             requestedAt: serverTimestamp(),
             requestedRole: values.role,
-        });
+        };
+        await setDoc(pendingUserDocRef, pendingUserDocData)
+            .catch(async (serverError) => {
+                const permissionError = new FirestorePermissionError({
+                    path: pendingUserDocRef.path,
+                    operation: 'create',
+                    requestResourceData: pendingUserDocData,
+                });
+                errorEmitter.emit('permission-error', permissionError);
+            });
         
         setSuccessMessage('¡Registro exitoso! Tu cuenta está pendiente de aprobación por un administrador.');
         
