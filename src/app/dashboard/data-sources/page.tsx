@@ -61,7 +61,7 @@ import { useToast } from '@/hooks/use-toast';
 import { databaseSchemaUnderstanding } from '@/ai/flows/database-schema-understanding';
 import { Textarea } from '@/components/ui/textarea';
 import { useFirestore } from '@/firebase';
-import { collection, doc, setDoc, onSnapshot, query, updateDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, onSnapshot, query, updateDoc, deleteDoc } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const iconMap = {
@@ -236,8 +236,7 @@ export default function DataSourcesPage() {
           const newId = crypto.randomUUID();
           dataToSave.schema = ''; // Initialize schema field
           await setDoc(doc(firestore, "dataSources", newId), dataToSave);
-          await setDoc(doc(collection(firestore, `dataSource_queries_${newId}`), '_init'), { initialized: true });
-
+          
           toast({
             title: "Conexión Exitosa",
             description: `La fuente de datos '${values.name}' ha sido añadida.`,
@@ -285,17 +284,26 @@ export default function DataSourcesPage() {
       }
   }
 
-  const handleDeleteDataSource = () => {
-    if (!selectedDataSource) return;
+  async function handleDeleteDataSource() {
+    if (!selectedDataSource || !firestore) return;
 
-    setDataSources(dataSources.filter(ds => ds.id !== selectedDataSource.id));
-    toast({
-        title: 'Fuente de Datos Eliminada',
-        description: `'${selectedDataSource.name}' ha sido eliminada.`
-    });
-    setIsDeleteDialogOpen(false);
-    setIsManageDialogOpen(false);
-    setSelectedDataSource(null);
+    try {
+        await deleteDoc(doc(firestore, "dataSources", selectedDataSource.id));
+        toast({
+            title: 'Fuente de Datos Eliminada',
+            description: `'${selectedDataSource.name}' ha sido eliminada permanentemente.`
+        });
+        setIsDeleteDialogOpen(false);
+        setIsManageDialogOpen(false);
+        setSelectedDataSource(null);
+    } catch (error) {
+        console.error("Error deleting data source:", error);
+        toast({
+            variant: 'destructive',
+            title: 'Error al Eliminar',
+            description: 'No se pudo eliminar la fuente de datos. Por favor, inténtelo de nuevo.'
+        });
+    }
   }
 
   const openDialog = (mode: 'add' | 'manage' | 'analyze', dataSource?: DataSource) => {
