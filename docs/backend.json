@@ -19,6 +19,11 @@
           "type": "string",
           "description": "The user's role in the system.",
           "enum": ["super-admin", "admin", "db-manager", "db-analyst", "pending-approval"]
+        },
+        "requestedRole": {
+          "type": "string",
+          "description": "The role requested by a user during registration.",
+           "enum": ["admin", "db-manager", "db-analyst"]
         }
       },
       "required": ["email", "role"]
@@ -41,6 +46,11 @@
             "type": "string",
             "format": "date-time",
             "description": "The timestamp when the user registered."
+        },
+        "requestedRole": {
+          "type": "string",
+          "description": "The role requested by a user during registration.",
+           "enum": ["admin", "db-manager", "db-analyst"]
         }
       },
       "required": ["email", "uid", "requestedAt"]
