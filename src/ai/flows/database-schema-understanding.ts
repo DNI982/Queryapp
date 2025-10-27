@@ -42,13 +42,15 @@ const databaseSchemaUnderstandingPrompt = ai.definePrompt({
   name: 'databaseSchemaUnderstandingPrompt',
   input: {schema: DatabaseSchemaUnderstandingInputSchema},
   output: {schema: DatabaseSchemaUnderstandingOutputSchema},
-  prompt: `You are an expert database administrator.  Your job is to understand the schema of a database and describe it in natural language.
+  prompt: `Eres un administrador de bases de datos experto. Tu trabajo es entender el esquema de una base de datos y describirlo en lenguaje natural.
 
-  Here is the schema for a {{{databaseType}}} database:
+  IMPORTANTE: Tu respuesta DEBE ser en español.
+
+  Aquí está el esquema para una base de datos {{{databaseType}}}:
 
   {{{databaseSchema}}}
 
-  Describe the schema in natural language, including the tables, columns, and relationships. Focus on the data stored in each table and the primary keys/foreign keys and relationship to other tables. Assume that the user is familiar with general database concepts but not familiar with this particular database. Be concise.
+  Describe el esquema en español, incluyendo las tablas, columnas y relaciones. Enfócate en los datos almacenados en cada tabla y las claves primarias/foráneas y su relación con otras tablas. Asume que el usuario está familiarizado con conceptos generales de bases de datos pero no con esta base de datos en particular. Sé conciso.
   `,
 });
 
