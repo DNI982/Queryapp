@@ -56,7 +56,7 @@ export default function PermissionsPage() {
 
   useEffect(() => {
     if (!firestore) return;
-
+    setLoading(true);
     const permissionsColRef = collection(firestore, 'permissions');
     const unsubscribe = onSnapshot(permissionsColRef, (snapshot) => {
       const perms: PermissionsState = {};
