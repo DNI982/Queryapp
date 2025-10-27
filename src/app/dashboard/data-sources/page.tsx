@@ -48,7 +48,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Loader2, PlusCircle, ScanSearch, Trash2 } from 'lucide-react';
+import { Loader2, PlusCircle, ScanSearch, Trash2, Eye } from 'lucide-react';
 import {
   PostgreSqlIcon,
   MongoDbIcon,
@@ -88,6 +88,7 @@ interface DataSource {
   database?: string;
   connectionString?: string;
   schema?: string;
+  schemaAnalysis?: string;
 }
 
 const formSchema = z.discriminatedUnion("connectionType", [
@@ -141,6 +142,7 @@ export default function DataSourcesPage() {
   const [isManageDialogOpen, setIsManageDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isOverwriteSchemaDialogOpen, setIsOverwriteSchemaDialogOpen] = useState(false);
+  const [isViewAnalysisDialogOpen, setIsViewAnalysisDialogOpen] = useState(false);
   const [selectedDataSource, setSelectedDataSource] = useState<DataSource | null>(null);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -262,10 +264,11 @@ export default function DataSourcesPage() {
           });
           setAnalysisResult(result.databaseSchemaDescription);
 
-          // Save the schema to Firestore
+          // Save the schema and the analysis to Firestore
           const dataSourceRef = doc(firestore, 'dataSources', selectedDataSource.id);
           await updateDoc(dataSourceRef, {
-              schema: values.schema
+              schema: values.schema,
+              schemaAnalysis: result.databaseSchemaDescription,
           });
 
           toast({
@@ -321,6 +324,11 @@ export default function DataSourcesPage() {
       openAnalyzeDialog();
     }
   }
+
+  const handleViewAnalysisClick = (dataSource: DataSource) => {
+    setSelectedDataSource(dataSource);
+    setIsViewAnalysisDialogOpen(true);
+  };
 
   const openDialog = (mode: 'add' | 'manage', dataSource?: DataSource) => {
     setSelectedDataSource(dataSource || null);
@@ -543,10 +551,18 @@ export default function DataSourcesPage() {
               <p className="text-sm text-muted-foreground line-clamp-2">{source.description}</p>
             </CardContent>
             <CardFooter className="flex flex-col gap-2 items-stretch">
-                <Button variant="outline" onClick={() => handleAnalyzeClick(source)}>
-                    <ScanSearch className="mr-2 h-4 w-4" />
-                    Analizar Esquema
-                </Button>
+                <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1" onClick={() => handleAnalyzeClick(source)}>
+                        <ScanSearch className="mr-2 h-4 w-4" />
+                        Analizar Esquema
+                    </Button>
+                    {source.schemaAnalysis && (
+                        <Button variant="outline" size="icon" onClick={() => handleViewAnalysisClick(source)}>
+                            <Eye className="h-4 w-4" />
+                            <span className="sr-only">Ver Análisis</span>
+                        </Button>
+                    )}
+                </div>
               <Button variant="secondary" className="w-full" onClick={() => openDialog('manage', source)}>
                 Gestionar
               </Button>
@@ -604,6 +620,28 @@ export default function DataSourcesPage() {
                 </Alert>
             )}
           </DialogContent>
+        </Dialog>
+        
+        <Dialog open={isViewAnalysisDialogOpen} onOpenChange={setIsViewAnalysisDialogOpen}>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Análisis Guardado de {selectedDataSource?.name}</DialogTitle>
+                    <DialogDescription>
+                        Este es el análisis del esquema generado previamente por la IA.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    <Alert>
+                        <AlertTitle>Análisis de la IA</AlertTitle>
+                        <AlertDescription className='whitespace-pre-wrap text-sm max-h-[400px] overflow-y-auto'>
+                            {selectedDataSource?.schemaAnalysis || 'No hay ningún análisis guardado para esta fuente de datos.'}
+                        </AlertDescription>
+                    </Alert>
+                </div>
+                <DialogFooter>
+                    <Button onClick={() => setIsViewAnalysisDialogOpen(false)}>Cerrar</Button>
+                </DialogFooter>
+            </DialogContent>
         </Dialog>
 
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
