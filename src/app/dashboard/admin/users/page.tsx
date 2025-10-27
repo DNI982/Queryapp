@@ -57,7 +57,7 @@ type UserProfile = {
   displayName: string;
   email: string;
   role: UserRole;
-  requestedRole?: Exclude<UserRole, 'pending-approval'>;
+  requestedRole?: Exclude<UserRole, 'pending-approval' | 'super-admin'>;
 };
 
 const roleNames: Record<Exclude<UserRole, 'pending-approval'>, string> = {
@@ -99,27 +99,21 @@ export default function UsersAdminPage() {
 
   const handleApprove = (userId: string, requestedRole: UserProfile['requestedRole']) => {
     if (!firestore) return;
-    const batch = writeBatch(firestore);
-    
     const userDocRef = doc(firestore, 'users', userId);
-    const userData = { role: requestedRole || 'db-analyst' };
-    batch.update(userDocRef, userData);
-
-    const pendingUserDocRef = doc(firestore, 'pendingUsers', userId);
-    batch.delete(pendingUserDocRef);
-
-    batch.commit()
+    const roleToSet = requestedRole || 'db-analyst';
+    
+    updateDoc(userDocRef, { role: roleToSet })
         .then(() => {
             toast({
                 title: 'Usuario Aprobado',
-                description: `El usuario ha sido aprobado y ahora tiene el rol de ${roleNames[requestedRole || 'db-analyst']}.`,
+                description: `El usuario ha sido aprobado y ahora tiene el rol de ${roleNames[roleToSet]}.`,
             });
         })
         .catch(async (serverError) => {
              const permissionError = new FirestorePermissionError({
-                path: `users/${userId} and pendingUsers/${userId}`,
+                path: userDocRef.path,
                 operation: 'update',
-                requestResourceData: { user: userData },
+                requestResourceData: { role: roleToSet },
             });
             errorEmitter.emit('permission-error', permissionError);
         });
@@ -127,24 +121,19 @@ export default function UsersAdminPage() {
 
   const handleDeny = (userId: string, userEmail: string) => {
     if (!firestore) return;
-    const batch = writeBatch(firestore);
 
     const userDocRef = doc(firestore, 'users', userId);
-    batch.delete(userDocRef);
-
-    const pendingUserDocRef = doc(firestore, 'pendingUsers', userId);
-    batch.delete(pendingUserDocRef);
-
-    batch.commit()
+    
+    deleteDoc(userDocRef)
         .then(() => {
             toast({
-                title: 'Usuario Denegado',
-                description: `La solicitud de ${userEmail} ha sido denegada y eliminada.`,
+                title: 'Usuario Denegado/Eliminado',
+                description: `El usuario ${userEmail} ha sido eliminado del sistema.`,
             });
         })
         .catch(async (serverError) => {
             const permissionError = new FirestorePermissionError({
-                path: `users/${userId} and pendingUsers/${userId}`,
+                path: userDocRef.path,
                 operation: 'delete',
             });
             errorEmitter.emit('permission-error', permissionError);
@@ -201,8 +190,9 @@ export default function UsersAdminPage() {
     return roleNames[role as Exclude<UserRole, 'pending-approval'>] || 'Desconocido';
   }
 
-  const filteredUsers = (role: UserProfile['role'] | 'all') => {
+  const filteredUsers = (role: UserProfile['role'] | 'all' | 'pending') => {
       if (role === 'all') return users.filter(u => u.role !== 'pending-approval');
+      if (role === 'pending') return users.filter(u => u.role === 'pending-approval');
       return users.filter(user => user.role === role);
   }
 
@@ -282,7 +272,7 @@ export default function UsersAdminPage() {
                         <DropdownMenuSubTrigger>Cambiar Rol</DropdownMenuSubTrigger>
                         <DropdownMenuPortal>
                             <DropdownMenuSubContent>
-                                {Object.entries(roleNames).map(([roleKey, roleName]) => (
+                                {Object.entries(roleNames).filter(([roleKey]) => roleKey !== 'super-admin').map(([roleKey, roleName]) => (
                                     user.role !== roleKey && (
                                         <DropdownMenuItem key={roleKey} onClick={() => handleRoleChange(user.id, roleKey as Exclude<UserRole, 'pending-approval'>)}>
                                             {getIconForRole(roleKey as UserRole)}
@@ -348,11 +338,11 @@ export default function UsersAdminPage() {
         <CardContent>
             <Tabs defaultValue="pending">
                 <TabsList className="grid w-full grid-cols-2 max-w-md mb-4">
-                    <TabsTrigger value="pending">Pendientes ({filteredUsers('pending-approval').length})</TabsTrigger>
+                    <TabsTrigger value="pending">Pendientes ({filteredUsers('pending').length})</TabsTrigger>
                     <TabsTrigger value="users">Usuarios Activos ({filteredUsers('all').length})</TabsTrigger>
                 </TabsList>
                 <TabsContent value="pending">
-                    {renderUserTable(filteredUsers('pending-approval'), 'pending')}
+                    {renderUserTable(filteredUsers('pending'), 'pending')}
                 </TabsContent>
                 <TabsContent value="users">
                     {renderUserTable(filteredUsers('all'), 'managed')}

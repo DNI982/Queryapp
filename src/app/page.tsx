@@ -151,16 +151,17 @@ export default function AuthPage() {
         const userCredential = await signUp(values.email, values.password);
         const newUser = userCredential.user;
 
-        const role = 'pending-approval';
+        const role = values.role as 'admin' | 'db-manager' | 'db-analyst';
 
         const userDocRef = doc(firestore, 'users', newUser.uid);
+        // For simplicity in this reverted state, we are auto-approving users.
+        // The 'pending-approval' flow will be re-implemented later.
         const userDocData = {
             displayName: newUser.email?.split('@')[0] || 'Nuevo Usuario',
             email: newUser.email,
-            role: role,
-            requestedRole: values.role,
+            role: role, 
         };
-        setDoc(userDocRef, userDocData)
+        await setDoc(userDocRef, userDocData)
             .catch(async (serverError) => {
                 const permissionError = new FirestorePermissionError({
                     path: userDocRef.path,
@@ -168,27 +169,11 @@ export default function AuthPage() {
                     requestResourceData: userDocData,
                 });
                 errorEmitter.emit('permission-error', permissionError);
-            });
-
-
-        const pendingUserDocRef = doc(firestore, 'pendingUsers', newUser.uid);
-        const pendingUserDocData = {
-            email: newUser.email,
-            uid: newUser.uid,
-            requestedAt: serverTimestamp(),
-            requestedRole: values.role,
-        };
-        setDoc(pendingUserDocRef, pendingUserDocData)
-            .catch(async (serverError) => {
-                const permissionError = new FirestorePermissionError({
-                    path: pendingUserDocRef.path,
-                    operation: 'create',
-                    requestResourceData: pendingUserDocData,
-                });
-                errorEmitter.emit('permission-error', permissionError);
+                 throw serverError;
             });
         
-        setSuccessMessage('¡Registro exitoso! Tu cuenta está pendiente de aprobación por un administrador.');
+        // No longer creating pending users, approve directly for now.
+        setSuccessMessage('¡Registro exitoso! Ya puedes iniciar sesión.');
         
         registerForm.reset();
         setActiveTab('login');
