@@ -115,7 +115,13 @@
     }
   },
   "auth": {
-    "providers": ["email-password"]
+    "providers": ["email-password"],
+    "claims": {
+        "role": {
+            "type": "string",
+            "enum": ["super-admin", "admin", "db-manager", "db-analyst", "pending-approval"]
+        }
+    }
   },
   "firestore": {
     "/users/{userId}": {
