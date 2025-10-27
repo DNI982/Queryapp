@@ -38,6 +38,12 @@ const ROLES = [
   { id: 'admin', name: 'Administrador' },
 ];
 
+const PERMISSION_TYPES = [
+    { id: 'canRead', name: 'Ver' },
+    { id: 'canWrite', name: 'Crear/Editar' },
+    { id: 'canDelete', name: 'Eliminar' },
+];
+
 type Permission = {
   id: string;
   canRead: boolean;
@@ -93,22 +99,27 @@ export default function PermissionsPage() {
   ) => {
     if (!firestore) return;
     
-    const newPermissions = { ...permissions };
-    if (!newPermissions[moduleId]) newPermissions[moduleId] = {};
-    if (!newPermissions[moduleId][roleId]) {
-      newPermissions[moduleId][roleId] = { canRead: false, canWrite: false, canDelete: false };
-    }
-    newPermissions[moduleId][roleId][permissionType] = value;
-    setPermissions(newPermissions);
+    // Optimistic update
+    setPermissions(prev => {
+        const newPermissions = JSON.parse(JSON.stringify(prev));
+        if (!newPermissions[moduleId]) newPermissions[moduleId] = {};
+        if (!newPermissions[moduleId][roleId]) {
+          newPermissions[moduleId][roleId] = { canRead: false, canWrite: false, canDelete: false };
+        }
+        newPermissions[moduleId][roleId][permissionType] = value;
+        return newPermissions;
+    });
 
     const docId = `${moduleId}_${roleId}`;
     const permissionDocRef = doc(firestore, 'permissions', docId);
 
+    const baseData = permissions[moduleId]?.[roleId] || { canRead: false, canWrite: false, canDelete: false };
     
     const dataToSet = {
       moduleId,
       role: roleId,
-      ...newPermissions[moduleId][roleId],
+      ...baseData,
+      [permissionType]: value
     };
     
     setDoc(permissionDocRef, dataToSet, { merge: true }).catch(async (error) => {
@@ -118,10 +129,12 @@ export default function PermissionsPage() {
             requestResourceData: { [permissionType]: value },
         });
         errorEmitter.emit('permission-error', permissionError);
-        // Revert optimistic update
-        const oldPermissions = { ...permissions };
-        oldPermissions[moduleId][roleId][permissionType] = !value;
-        setPermissions(oldPermissions);
+        // Revert optimistic update on error
+        setPermissions(prev => {
+            const revertedPermissions = JSON.parse(JSON.stringify(prev));
+            revertedPermissions[moduleId][roleId][permissionType] = !value;
+            return revertedPermissions;
+        });
         toast({
             variant: 'destructive',
             title: 'Error de Permiso',
@@ -130,74 +143,64 @@ export default function PermissionsPage() {
     });
   };
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Gestión de Permisos</CardTitle>
-        <CardDescription>
-          Activa o desactiva el acceso de cada rol a los diferentes módulos del sistema.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-            <div className="flex justify-center items-center h-64">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-        ) : (
-        <div className="overflow-x-auto">
-            <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[200px]">Módulo</TableHead>
-                {ROLES.map(role => (
-                  <TableHead key={role.id} className="text-center">{role.name}</TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {MODULES.map(module => (
-                <TableRow key={module.id}>
-                  <TableCell className="font-medium">{module.name}</TableCell>
-                  {ROLES.map(role => {
-                    const currentPerms = permissions[module.id]?.[role.id] || { canRead: false, canWrite: false, canDelete: false };
-                    return (
-                      <TableCell key={role.id} className="text-center">
-                        <div className="flex justify-center items-center space-x-4">
-                           <div className="flex items-center space-x-2">
-                                <Switch
-                                    id={`read-${module.id}-${role.id}`}
-                                    checked={currentPerms.canRead}
-                                    onCheckedChange={(value) => handlePermissionChange(module.id, role.id, 'canRead', value)}
-                                />
-                                <label htmlFor={`read-${module.id}-${role.id}`} className="text-sm font-medium">Ver</label>
-                            </div>
-                             <div className="flex items-center space-x-2">
-                                <Switch
-                                    id={`write-${module.id}-${role.id}`}
-                                    checked={currentPerms.canWrite}
-                                    onCheckedChange={(value) => handlePermissionChange(module.id, role.id, 'canWrite', value)}
-                                />
-                                <label htmlFor={`write-${module.id}-${role.id}`} className="text-sm font-medium">Crear/Editar</label>
-                            </div>
-                             <div className="flex items-center space-x-2">
-                                <Switch
-                                    id={`delete-${module.id}-${role.id}`}
-                                    checked={currentPerms.canDelete}
-                                    onCheckedChange={(value) => handlePermissionChange(module.id, role.id, 'canDelete', value)}
-                                />
-                                <label htmlFor={`delete-${module.id}-${role.id}`} className="text-sm font-medium">Eliminar</label>
-                            </div>
-                        </div>
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+  if (loading) {
+    return (
+        <div className="flex h-[calc(100vh-theme(spacing.48))] items-center justify-center">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
         </div>
-        )}
-      </CardContent>
-    </Card>
+    );
+  }
+
+  return (
+    <div className='space-y-6'>
+        <Card>
+            <CardHeader>
+                <CardTitle>Gestión de Permisos</CardTitle>
+                <CardDescription>
+                Activa o desactiva el acceso de cada rol a los diferentes módulos del sistema.
+                </CardDescription>
+            </CardHeader>
+        </Card>
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+      {MODULES.map(module => (
+        <Card key={module.id}>
+          <CardHeader>
+            <CardTitle>{module.name}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[40%]">Rol</TableHead>
+                  {PERMISSION_TYPES.map(pt => (
+                      <TableHead key={pt.id} className="text-center">{pt.name}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {ROLES.map(role => {
+                  const currentPerms = permissions[module.id]?.[role.id] || { canRead: false, canWrite: false, canDelete: false };
+                  return (
+                    <TableRow key={role.id}>
+                      <TableCell className="font-medium">{role.name}</TableCell>
+                      {PERMISSION_TYPES.map(pt => (
+                        <TableCell key={pt.id} className="text-center">
+                            <Switch
+                                id={`${pt.id}-${module.id}-${role.id}`}
+                                checked={currentPerms[pt.id as keyof typeof currentPerms]}
+                                onCheckedChange={(value) => handlePermissionChange(module.id, role.id, pt.id as 'canRead' | 'canWrite' | 'canDelete', value)}
+                            />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+    </div>
   );
 }
