@@ -211,7 +211,7 @@ export default function DataSourcesPage() {
         setConnectionTab('fields');
         form.reset(emptyFormValues)
     }
-}, [selectedDataSource, isManageDialogOpen, form])
+}, [selectedDataSource, isManageDialogOpen, form]);
 
   useEffect(() => {
     if (selectedDataSource && isAnalyzeDialogOpen) {
@@ -652,7 +652,7 @@ export default function DataSourcesPage() {
                         <AlertTitle>Análisis de la IA</AlertTitle>
                         <AlertDescription className='whitespace-pre-wrap text-sm max-h-[400px] overflow-y-auto'>
                             {selectedDataSource?.schemaAnalysis || 'No hay ningún análisis guardado para esta fuente de datos.'}
-                        </AlertDescription>
+                        </Description>
                     </Alert>
                 </div>
                 <DialogFooter>
