@@ -48,7 +48,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Loader2, PlusCircle, ScanSearch, Trash2, Eye } from 'lucide-react';
+import { Loader2, PlusCircle, ScanSearch, Trash2, Eye, AlertCircle } from 'lucide-react';
 import {
   PostgreSqlIcon,
   MongoDbIcon,
@@ -56,13 +56,13 @@ import {
   OracleIcon,
   MySqlIcon,
 } from '@/components/icons';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { databaseSchemaUnderstanding } from '@/ai/flows/database-schema-understanding';
 import { Textarea } from '@/components/ui/textarea';
 import { useFirestore } from '@/firebase';
 import { collection, doc, setDoc, onSnapshot, query, updateDoc, deleteDoc } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { testConnection } from '../actions';
 
 const iconMap = {
   PostgreSQL: PostgreSqlIcon,
@@ -80,7 +80,6 @@ interface DataSource {
   type: DataSourceType;
   description: string;
   icon: (props: React.SVGProps<SVGSVGElement>) => JSX.Element;
-  status: 'Conectado' | 'Desconectado';
   connectionType: 'fields' | 'url';
   host?: string;
   port?: number;
@@ -146,6 +145,8 @@ export default function DataSourcesPage() {
   const [selectedDataSource, setSelectedDataSource] = useState<DataSource | null>(null);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const { toast } = useToast();
   const firestore = useFirestore();
   const [connectionTab, setConnectionTab] = useState("fields");
@@ -161,7 +162,6 @@ export default function DataSourcesPage() {
           id: doc.id,
           ...data,
           icon: iconMap[data.type as DataSourceType] || PostgreSqlIcon,
-          status: 'Conectado', // Placeholder status
         } as DataSource);
       });
       setDataSources(sources);
@@ -194,6 +194,7 @@ export default function DataSourcesPage() {
   }, [dbType]);
 
   useEffect(() => {
+    setConnectionError(null);
     if (selectedDataSource && isManageDialogOpen) {
         setConnectionTab(selectedDataSource.connectionType || 'fields');
         form.reset({
@@ -224,6 +225,17 @@ export default function DataSourcesPage() {
         return;
     }
     
+    setIsTestingConnection(true);
+    setConnectionError(null);
+    
+    const testResult = await testConnection(values);
+
+    if (!testResult.success) {
+      setIsTestingConnection(false);
+      setConnectionError(testResult.error || "No se pudo establecer la conexión. Verifique las credenciales y la conectividad de la red.");
+      return;
+    }
+
     try {
         let dataToSave: Omit<DataSource, 'id' | 'icon' | 'status' | 'schema'> & { schema?: string } = { ...values };
 
@@ -231,7 +243,7 @@ export default function DataSourcesPage() {
           await setDoc(doc(firestore, "dataSources", selectedDataSource.id), dataToSave, { merge: true });
           toast({
             title: "Fuente de Datos Actualizada",
-            description: `Se han guardado los cambios en '${values.name}'.`,
+            description: `La conexión a '${values.name}' fue exitosa y los cambios han sido guardados.`,
           });
           setIsManageDialogOpen(false);
           setSelectedDataSource(null);
@@ -250,6 +262,8 @@ export default function DataSourcesPage() {
     } catch (error) {
         console.error("Error submitting data source:", error);
         toast({ variant: 'destructive', title: 'Error', description: 'No se pudo guardar la fuente de datos.' })
+    } finally {
+        setIsTestingConnection(false);
     }
   }
   
@@ -264,7 +278,6 @@ export default function DataSourcesPage() {
           });
           setAnalysisResult(result.databaseSchemaDescription);
 
-          // Save the schema and the analysis to Firestore
           const dataSourceRef = doc(firestore, 'dataSources', selectedDataSource.id);
           await updateDoc(dataSourceRef, {
               schema: values.schema,
@@ -331,6 +344,7 @@ export default function DataSourcesPage() {
   };
 
   const openDialog = (mode: 'add' | 'manage', dataSource?: DataSource) => {
+    setConnectionError(null);
     setSelectedDataSource(dataSource || null);
     if (mode === 'add') {
         form.reset(emptyFormValues);
@@ -358,7 +372,7 @@ export default function DataSourcesPage() {
             <DialogHeader>
               <DialogTitle>{selectedDataSource ? 'Gestionar' : 'Añadir Nueva'} Fuente de Datos</DialogTitle>
               <DialogDescription>
-                {selectedDataSource ? 'Edite los detalles o elimine la conexión.' : 'Elija un método para conectar una nueva base de datos.'}
+                {selectedDataSource ? 'Edite los detalles o elimine la conexión.' : 'Pruebe y guarde una nueva conexión a la base de datos.'}
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
@@ -514,6 +528,13 @@ export default function DataSourcesPage() {
                     </FormItem>
                   )}
                 />
+                 {connectionError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error de Conexión</AlertTitle>
+                    <AlertDescription>{connectionError}</AlertDescription>
+                  </Alert>
+                )}
                 <DialogFooter className='pt-4 flex-col-reverse sm:flex-row sm:justify-between sm:space-x-2'>
                   {selectedDataSource && (
                     <Button type="button" variant="destructive" onClick={() => setIsDeleteDialogOpen(true)}>
@@ -521,8 +542,9 @@ export default function DataSourcesPage() {
                         Eliminar
                     </Button>
                   )}
-                  <Button type="submit" className={!selectedDataSource ? 'w-full' : ''}>
-                    {selectedDataSource ? 'Guardar Cambios' : 'Probar y Guardar Conexión'}
+                  <Button type="submit" disabled={isTestingConnection} className={!selectedDataSource ? 'w-full' : ''}>
+                    {isTestingConnection && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isTestingConnection ? 'Probando Conexión...' : (selectedDataSource ? 'Guardar Cambios' : 'Probar y Guardar')}
                   </Button>
                 </DialogFooter>
               </form>
@@ -539,12 +561,7 @@ export default function DataSourcesPage() {
               </div>
               <div className="flex-1">
                 <CardTitle className="line-clamp-1">{source.name}</CardTitle>
-                <Badge
-                  variant={source.status === 'Conectado' ? 'default' : 'destructive'}
-                  className={source.status === 'Conectado' ? 'bg-green-500/20 text-green-700 border-green-500/30 dark:text-green-400' : 'bg-red-500/20 text-red-700 border-red-500/30 dark:text-red-400'}
-                >
-                  {source.status}
-                </Badge>
+                <CardDescription>{source.type}</CardDescription>
               </div>
             </CardHeader>
             <CardContent className="flex-grow">
@@ -683,5 +700,3 @@ export default function DataSourcesPage() {
     </div>
   );
 }
-
-    

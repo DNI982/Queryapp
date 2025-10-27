@@ -1,7 +1,7 @@
 'use server';
 
 import { naturalLanguageToSQL } from '@/ai/flows/natural-language-to-sql';
-import { executeQuery as executeDbQuery } from '@/lib/db-connector';
+import { executeQuery as executeDbQuery, testConnection as testDbConnection } from '@/lib/db-connector';
 
 interface GenerateSQLParams {
     naturalLanguageQuery: string;
@@ -42,5 +42,15 @@ export async function executeQuery({ query, dataSource }: { query: string; dataS
     } catch (e: any) {
         console.error(e);
         return { error: e.message || 'Ocurrió un error inesperado al ejecutar la consulta.' };
+    }
+}
+
+export async function testConnection(dataSource: any): Promise<{ success: boolean; error?: string; }> {
+    try {
+        await testDbConnection(dataSource);
+        return { success: true };
+    } catch (error: any) {
+        console.error('Error en la prueba de conexión:', error);
+        return { success: false, error: error.message || 'Error de conexión desconocido.' };
     }
 }
