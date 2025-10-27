@@ -1,125 +1,127 @@
 /**
- * @fileoverview Firestore Security Rules for the application.
- *
- * Core Philosophy:
- * This ruleset enforces a role-based access control model with user-level ownership for data sources.
- * User profiles are public, but only super-admins can manage pending user approvals and role-based permissions.
+ * @file Firestore Security Rules
+ * @version 2
+ * @description This ruleset enforces role-based access control, with a super-admin having the highest level of privilege.
  *
  * Data Structure:
- * - /users/{userId}: Stores user profiles, accessible to everyone for read operations.
- * - /pendingUsers/{userId}: Stores pending user registration requests, managed by super-admins.
- * - /dataSources/{dataSourceId}: Stores data source connection details, owned by individual users.
- * - /permissions/{permissionId}: Stores dynamic permissions for roles, managed by super-admins.
+ * - /users/{userId}: Stores user profile information.
+ * - /pendingUsers/{userId}: Stores user registration requests pending approval.
+ * - /dataSources/{dataSourceId}: Stores data source connections, with ownership enforced.
+ * - /permissions/{permissionId}: Stores role-based permissions, configurable by the super-admin.
  *
  * Key Security Decisions:
- * - User profiles are publicly readable to facilitate user discovery and interaction.
- * - Listing of pending users is disallowed to prevent unauthorized access to registration information.
- * - Data sources are owned by individual users, preventing unauthorized access to connection details.
+ * - User listing is disallowed.
+ * - Only the super-admin can approve pending users.
+ * - Data sources are owned by individual users.
+ * - Permissions are managed by the super-admin.
  *
  * Denormalization for Authorization:
- * The `dataSource` entity includes an `ownerId` field to simplify ownership checks,
- * avoiding the need for additional `get()` operations.
+ * - The user's role is stored directly in the /users/{userId} document for quick access.
+ * - Data sources contain an `ownerId` field to determine ownership.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description Allows read access to user profiles for everyone, and owner-only write access.
+     * @description Manages user profile information.
      * @path /users/{userId}
-     * @allow (get, list) - Any user can read a user profile.
-     * @allow (create, update, delete) - Only the user with matching {userId} can modify their own profile.
-     * @deny (create, update, delete) - Another user attempts to modify a profile they don't own.
-     * @principle Public read, owner-only writes, and self-creation for user profiles.
+     * @allow (create) User with matching ID can create their profile.
+     * @allow (get, update, delete) User can access and modify their own profile.
+     * @deny (create) User cannot create a profile with a mismatched ID.
+     * @deny (list) User cannot list all profiles.
+     * @principle Enforces user-ownership and self-creation for profiles.
      */
     match /users/{userId} {
-      allow get, list: if true;
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isSignedIn() && request.auth.uid == userId && request.resource.data.email == resource.data.email && request.resource.data.role == resource.data.role;
-      allow delete: if false;
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isSignedIn() {
+          return request.auth != null;
+      }
+
+      allow get: if isSignedIn() && isOwner(userId);
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(userId) && request.resource.data.email == request.auth.token.email;
+      allow update: if isSignedIn() && isOwner(userId);
+      allow delete: if isSignedIn() && isOwner(userId);
     }
 
     /**
-     * @description Allows super-admins to manage pending user approvals.
+     * @description Manages pending user registration requests.
      * @path /pendingUsers/{userId}
-     * @allow (create, update, get, delete) - A super-admin can manage pending user requests.
-     * @deny (create, update, get, delete) - A non-super-admin attempts to manage pending user requests.
-     * @deny (list) - No listing of pending users.
-     * @principle Role-based access control for managing pending user registrations.
+     * @allow (create) Any signed-in user can request approval for a role.
+     * @allow (get, update, delete) Only the super-admin can view, update, and delete pending user requests.
+     * @deny (list) Regular users cannot list pending users.
+     * @principle Restricts access to pending user requests to the super-admin role.
      */
     match /pendingUsers/{userId} {
-      allow get: if hasRole(['super-admin']);
-      allow list: if false;
-      allow create: if hasRole(['super-admin']) && request.auth.uid == request.resource.data.uid;
-      allow update: if hasRole(['super-admin']);
-      allow delete: if hasRole(['super-admin']);
+        function isSuperAdmin() {
+            return request.auth != null && request.auth.token.role == 'super-admin';
+        }
+
+        function isSignedIn() {
+          return request.auth != null;
+        }
+
+        allow get: if isSignedIn() && isSuperAdmin();
+        allow list: if false;
+        allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+        allow update: if isSignedIn() && isSuperAdmin();
+        allow delete: if isSignedIn() && isSuperAdmin();
     }
 
     /**
-     * @description Allows users to manage their own data source connections.
+     * @description Manages data source connections.
      * @path /dataSources/{dataSourceId}
-     * @allow (create, get, list, update, delete) - The owner of the data source can manage it.
-     * @deny (create, get, list, update, delete) - A non-owner attempts to manage a data source.
-     * @principle Owner-only access control for data sources.
+     * @allow (create) User can create a data source with their ID as the owner.
+     * @allow (get, update, delete) User can access and modify their own data sources.
+     * @deny (create) User cannot create a data source with a mismatched owner ID.
+     * @deny (list)  User cannot list all data sources.
+     * @principle Enforces data source ownership.
      */
     match /dataSources/{dataSourceId} {
-      allow get: if isOwner(resource.data.ownerId);
-      allow list: if isOwner(resource.data.ownerId);
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.ownerId) && request.resource.data.ownerId == resource.data.ownerId;
-      allow delete: if isExistingOwner(resource.data.ownerId);
+      function isOwner(ownerId) {
+        return request.auth != null && request.auth.uid == ownerId;
+      }
+
+      function isSignedIn() {
+          return request.auth != null;
+      }
+
+      function isExistingOwner(ownerId) {
+          return isSignedIn() && isOwner(ownerId) && resource.data.ownerId == request.auth.uid;
+      }
+
+      allow get: if isSignedIn() && isOwner(resource.data.ownerId);
+      allow list: if false;
+      allow create: if isSignedIn() && isOwner(request.resource.data.ownerId);
+      allow update: if isSignedIn() && isExistingOwner(resource.data.ownerId);
+      allow delete: if isSignedIn() && isExistingOwner(resource.data.ownerId);
     }
 
     /**
-     * @description Allows super-admins to manage role-based permissions.
+     * @description Manages role-based permissions for modules.
      * @path /permissions/{permissionId}
-     * @allow (create, update, get, delete) - A super-admin can manage role permissions.
-     * @deny (create, update, get, delete) - A non-super-admin attempts to manage role permissions.
-     * @principle Role-based access control for managing dynamic permissions.
+     * @allow (create, update, delete) Only the super-admin can manage role permissions.
+     * @deny (get, list) Regular users cannot view or list permissions.
+     * @principle Restricts permission management to the super-admin role.
      */
     match /permissions/{permissionId} {
-      allow get: if hasRole(['super-admin']);
-      allow list: if hasRole(['super-admin']);
-      allow create: if hasRole(['super-admin']);
-      allow update: if hasRole(['super-admin']);
-      allow delete: if hasRole(['super-admin']);
-    }
+      function isSuperAdmin() {
+        return request.auth != null && request.auth.token.role == 'super-admin';
+      }
 
-    // --- Helper functions ---
+      function isSignedIn() {
+          return request.auth != null;
+      }
 
-    /**
-     * @description Checks if the current user is signed in.
-     * @return {boolean} True if the user is signed in, false otherwise.
-     */
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    /**
-     * @description Checks if the current user has the specified role.
-     * @param {array} roles An array of roles to check against the user's claim.
-     * @return {boolean} True if the user has at least one of the specified roles, false otherwise.
-     */
-    function hasRole(roles) {
-      return isSignedIn() && roles.hasAny(request.auth.token.role);
-    }
-
-    /**
-     * @description Checks if the current user is the owner of the resource.
-     * @param {string} userId The user ID to compare against the authenticated user's ID.
-     * @return {boolean} True if the user is the owner, false otherwise.
-     */
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    /**
-     * @description Checks if the current user is the owner of the resource and it exists.
-     * @param {string} userId The user ID to compare against the authenticated user's ID.
-     * @return {boolean} True if the user is the owner and the resource exists, false otherwise.
-     */
-    function isExistingOwner(userId) {
-        return isOwner(userId) && resource != null;
+      allow get: if isSignedIn() && isSuperAdmin();
+      allow list: if false;
+      allow create: if isSignedIn() && isSuperAdmin();
+      allow update: if isSignedIn() && isSuperAdmin();
+      allow delete: if isSignedIn() && isSuperAdmin();
     }
   }
 }
