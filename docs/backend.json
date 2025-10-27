@@ -18,7 +18,7 @@
         "role": {
           "type": "string",
           "description": "The user's role in the system.",
-          "enum": ["super-admin", "user", "pending-approval"]
+          "enum": ["super-admin", "admin", "db-manager", "db-analyst", "pending-approval"]
         }
       },
       "required": ["email", "role"]
@@ -88,6 +88,19 @@
         }
       },
       "required": ["name", "type", "ownerId"]
+    },
+    "rolePermission": {
+      "title": "Role Permission",
+      "description": "Defines permissions for a specific role and module.",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["admin", "db-manager", "db-analyst"] },
+        "moduleId": { "type": "string" },
+        "canRead": { "type": "boolean" },
+        "canWrite": { "type": "boolean" },
+        "canDelete": { "type": "boolean" }
+      },
+      "required": ["role", "moduleId", "canRead", "canWrite", "canDelete"]
     }
   },
   "auth": {
@@ -111,6 +124,12 @@
         "$ref": "#/entities/dataSource"
       },
       "description": "Stores data source connections for users."
+    },
+    "/permissions/{permissionId}": {
+      "schema": {
+        "$ref": "#/entities/rolePermission"
+      },
+      "description": "Stores dynamic permissions for roles on a per-module basis, configurable by the super-admin."
     }
   }
 }

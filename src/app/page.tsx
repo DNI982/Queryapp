@@ -49,7 +49,7 @@ const registerSchema = z
       .string()
       .min(6, { message: 'La contraseña debe tener al menos 6 caracteres.' }),
     confirmPassword: z.string(),
-    role: z.string(),
+    role: z.string().min(1, { message: 'Debe seleccionar un rol.' }),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Las contraseñas no coinciden.',
@@ -81,7 +81,7 @@ export default function AuthPage() {
         email: '',
         password: '',
         confirmPassword: '',
-        role: 'user',
+        role: 'db-analyst',
     },
   });
 
@@ -359,7 +359,7 @@ export default function AuthPage() {
                     name="role"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Rol</FormLabel>
+                        <FormLabel>¿Qué rol te describe mejor?</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger>
@@ -367,8 +367,9 @@ export default function AuthPage() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="user">Usuario</SelectItem>
-                            <SelectItem value="super-admin">Super Admin</SelectItem>
+                            <SelectItem value="db-analyst">Analista de Base de Datos</SelectItem>
+                            <SelectItem value="db-manager">Gestor de Base de Datos</SelectItem>
+                            <SelectItem value="admin">Administrador</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
